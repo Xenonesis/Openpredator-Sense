@@ -56,6 +56,30 @@ pub struct LightingConfig {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AppItem {
+    pub id: String,
+    pub name: String,
+    pub category: String,
+    pub description: String,
+    pub exe_path: String,
+    pub installed: bool,
+    pub icon_name: String,
+    #[serde(default)]
+    pub custom: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LightingProfile {
+    pub id: String,
+    pub name: String,
+    pub zones: Vec<String>,
+    pub effect: String,
+    pub speed: u8,
+    pub direction: u8,
+    pub brightness: u8,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SystemStats {
     pub cpu_name: String,
     pub cpu_usage: f32,

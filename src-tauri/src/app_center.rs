@@ -1,18 +1,71 @@
 //! App Center module: Detects installed gaming tools and launches them.
 
-use std::path::Path;
+use std::env;
+use std::fs;
+use std::path::{Path, PathBuf};
 use std::process::Command;
-use serde::{Deserialize, Serialize};
+pub use crate::models::AppItem;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AppItem {
-    pub id: String,
-    pub name: String,
-    pub category: String,
-    pub description: String,
-    pub exe_path: String,
-    pub installed: bool,
-    pub icon_name: String,
+pub fn get_app_data_dir() -> PathBuf {
+    let base = env::var_os("APPDATA")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from(r"C:\ProgramData"));
+    let dir = base.join("OpenPredatorSense");
+    let _ = fs::create_dir_all(&dir);
+    dir
+}
+
+fn get_custom_apps_path() -> PathBuf {
+    get_app_data_dir().join("custom_apps.json")
+}
+
+pub fn get_custom_apps() -> Vec<AppItem> {
+    let path = get_custom_apps_path();
+    if let Ok(data) = fs::read_to_string(&path) {
+        if let Ok(apps) = serde_json::from_str::<Vec<AppItem>>(&data) {
+            return apps;
+        }
+    }
+    Vec::new()
+}
+
+pub fn save_custom_app(app: AppItem) -> Result<(), String> {
+    let mut apps = get_custom_apps();
+    apps.retain(|a| a.id != app.id);
+    apps.push(app);
+    let path = get_custom_apps_path();
+    let json = serde_json::to_string_pretty(&apps).map_err(|e| e.to_string())?;
+    fs::write(path, json).map_err(|e| e.to_string())
+}
+
+pub fn delete_custom_app(id: String) -> Result<(), String> {
+    let mut apps = get_custom_apps();
+    apps.retain(|a| a.id != id);
+    let path = get_custom_apps_path();
+    let json = serde_json::to_string_pretty(&apps).map_err(|e| e.to_string())?;
+    fs::write(path, json).map_err(|e| e.to_string())
+}
+
+pub fn pick_executable_dialog() -> Result<Option<String>, String> {
+    let script = r#"
+    Add-Type -AssemblyName System.Windows.Forms
+    $f = New-Object System.Windows.Forms.OpenFileDialog
+    $f.Filter = "Executable Files (*.exe)|*.exe|All Files (*.*)|*.*"
+    $f.Title = "Select Application Executable"
+    if ($f.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
+        Write-Output $f.FileName
+    }
+    "#;
+    let output = Command::new("powershell")
+        .args(["-NoProfile", "-Command", script])
+        .output()
+        .map_err(|e| e.to_string())?;
+    let path_str = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    if path_str.is_empty() {
+        Ok(None)
+    } else {
+        Ok(Some(path_str))
+    }
 }
 
 pub struct AppCenter;
@@ -97,6 +150,7 @@ impl AppCenter {
                 exe_path: path.to_string(),
                 installed: is_inst,
                 icon_name: icon.to_string(),
+                custom: false,
             });
         }
 

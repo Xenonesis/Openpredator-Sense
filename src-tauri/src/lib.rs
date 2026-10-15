@@ -5,13 +5,14 @@ pub mod win32_util;
 pub mod nvapi;
 pub mod game_sync;
 pub mod app_center;
-
+pub mod lighting_profiles;
 use std::sync::Arc;
 use tauri::State;
 use crate::models::{FanMode, PerformanceMode, SystemStats, WmiCmd};
 use crate::hardware_manager::HardwareManager;
 use crate::game_sync::{GameProfile, GameScanner};
 use crate::app_center::{AppCenter, AppItem};
+use crate::models::LightingProfile;
 
 // ─── Tauri Commands ──────────────────────────────────────────────────────────
 // All commands read from cache (instant) or fire to worker (non-blocking).
@@ -134,6 +135,51 @@ fn launch_app(path: String) -> Result<(), String> {
 }
 
 #[tauri::command]
+fn get_custom_apps() -> Vec<AppItem> {
+    app_center::get_custom_apps()
+}
+
+#[tauri::command]
+fn save_custom_app(app: AppItem) -> Result<(), String> {
+    app_center::save_custom_app(app)
+}
+
+#[tauri::command]
+fn delete_custom_app(id: String) -> Result<(), String> {
+    app_center::delete_custom_app(id)
+}
+
+#[tauri::command]
+fn pick_executable_dialog() -> Result<Option<String>, String> {
+    app_center::pick_executable_dialog()
+}
+
+#[tauri::command]
+fn get_lighting_profiles() -> Vec<LightingProfile> {
+    lighting_profiles::get_lighting_profiles()
+}
+
+#[tauri::command]
+fn save_lighting_profile(profile: LightingProfile) -> Result<(), String> {
+    lighting_profiles::save_lighting_profile(profile)
+}
+
+#[tauri::command]
+fn delete_lighting_profile(id: String) -> Result<(), String> {
+    lighting_profiles::delete_lighting_profile(id)
+}
+
+#[tauri::command]
+fn export_lighting_profile(profile: LightingProfile) -> Result<(), String> {
+    lighting_profiles::export_profile_dialog(profile)
+}
+
+#[tauri::command]
+fn import_lighting_profile() -> Result<Option<LightingProfile>, String> {
+    lighting_profiles::import_profile_dialog()
+}
+
+#[tauri::command]
 fn window_minimize(window: tauri::Window) {
     let _ = window.minimize();
 }
@@ -194,6 +240,15 @@ pub fn run() {
             window_toggle_maximize,
             window_close,
             window_is_maximized,
+            get_custom_apps,
+            save_custom_app,
+            delete_custom_app,
+            pick_executable_dialog,
+            get_lighting_profiles,
+            save_lighting_profile,
+            delete_lighting_profile,
+            export_lighting_profile,
+            import_lighting_profile,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
