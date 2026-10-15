@@ -8,6 +8,7 @@ import {
   Volume2, VolumeX, ArrowDown, ArrowUp,
   RefreshCw, Play, X, ShieldAlert,
   Radio, Minus, Plus, Square, Copy, Thermometer,
+  Download, Upload,
 } from "lucide-react";
 import "./App.css";
 
@@ -94,6 +95,17 @@ export interface AppItem {
   exe_path: string;
   installed: boolean;
   icon_name: string;
+  custom?: boolean;
+}
+
+export interface LightingProfile {
+  id: string;
+  name: string;
+  zones: string[];
+  effect: string;
+  speed: number;
+  direction: number;
+  brightness: number;
 }
 
 function formatSpeed(bytesPerSec: number): string {
@@ -602,7 +614,15 @@ export default function App() {
 
   // App Center state
   const [apps, setApps] = useState<AppItem[]>([]);
+  const [showAddApp, setShowAddApp] = useState(false);
+  const [newAppName, setNewAppName] = useState("");
+  const [newAppPath, setNewAppPath] = useState("");
+  const [newAppCategory, setNewAppCategory] = useState("GAME");
 
+  // Lighting Profiles state
+  const [profiles, setProfiles] = useState<LightingProfile[]>([]);
+  const [showSaveProfileModal, setShowSaveProfileModal] = useState(false);
+  const [newProfileName, setNewProfileName] = useState("");
   // Telemetry stream history
   const [netHistory, setNetHistory] = useState<{ down: number[]; up: number[] }>({ down: [], up: [] });
 
@@ -638,14 +658,32 @@ export default function App() {
     return () => clearInterval(id);
   }, []);
 
+  const fetchAllApps = async () => {
+    try {
+      const defaultApps = await invoke<AppItem[]>("get_app_center_items");
+      const customApps = await invoke<AppItem[]>("get_custom_apps");
+      setApps([...defaultApps, ...customApps]);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const fetchProfiles = async () => {
+    try {
+      const list = await invoke<LightingProfile[]>("get_lighting_profiles");
+      setProfiles(list);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   useEffect(() => {
     invoke<GameProfile[]>("scan_installed_games")
       .then(setGames)
       .catch(console.error);
 
-    invoke<AppItem[]>("get_app_center_items")
-      .then(setApps)
-      .catch(console.error);
+    fetchAllApps();
+    fetchProfiles();
   }, []);
 
   // ── Hardware Trigger Actions ────────────────────────────────────────────────
@@ -834,6 +872,128 @@ export default function App() {
 
   const launchAppItem = (path: string) => {
     invoke("launch_app", { path }).catch((err) => alert(String(err)));
+  };
+
+  const handleBrowseExe = async () => {
+    try {
+      const selected = await invoke<string | null>("pick_executable_dialog");
+      if (selected) {
+        setNewAppPath(selected);
+        if (!newAppName) {
+          const fileName = selected.split("\\").pop()?.replace(/\.exe$/i, "") || "";
+          setNewAppName(fileName);
+        }
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleRegisterApp = async () => {
+    if (!newAppName.trim() || !newAppPath.trim()) return;
+    const newApp: AppItem = {
+      id: `app_${Date.now()}`,
+      name: newAppName.trim(),
+      category: newAppCategory,
+      description: `User-registered ${newAppCategory.toLowerCase()} executable shortcut.`,
+      exe_path: newAppPath.trim(),
+      installed: true,
+      icon_name: "gamepad",
+      custom: true,
+    };
+    try {
+      await invoke("save_custom_app", { app: newApp });
+      setShowAddApp(false);
+      setNewAppName("");
+      setNewAppPath("");
+      await fetchAllApps();
+    } catch (e) {
+      alert(String(e));
+    }
+  };
+
+  const handleDeleteApp = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      await invoke("delete_custom_app", { id });
+      await fetchAllApps();
+    } catch (err) {
+      alert(String(err));
+    }
+  };
+
+  const handleSaveProfile = async () => {
+    if (!newProfileName.trim()) return;
+    const newProf: LightingProfile = {
+      id: `lp_${Date.now()}`,
+      name: newProfileName.trim(),
+      zones: [...zones],
+      effect: selectedEffect,
+      speed: effectSpeed,
+      direction: effectDirection,
+      brightness: kbBrightness,
+    };
+    try {
+      await invoke("save_lighting_profile", { profile: newProf });
+      setShowSaveProfileModal(false);
+      setNewProfileName("");
+      await fetchProfiles();
+    } catch (err) {
+      alert(String(err));
+    }
+  };
+
+  const handleDeleteProfile = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      await invoke("delete_lighting_profile", { id });
+      await fetchProfiles();
+    } catch (err) {
+      alert(String(err));
+    }
+  };
+
+  const handleExportProfile = async (prof: LightingProfile) => {
+    try {
+      await invoke("export_lighting_profile", { profile: prof });
+    } catch (err) {
+      alert(String(err));
+    }
+  };
+
+  const handleImportProfile = async () => {
+    try {
+      const imported = await invoke<LightingProfile | null>("import_lighting_profile");
+      if (imported) {
+        await invoke("save_lighting_profile", { profile: imported });
+        await fetchProfiles();
+        applyLightingProfile(imported);
+      }
+    } catch (err) {
+      alert(String(err));
+    }
+  };
+
+  const applyLightingProfile = (prof: LightingProfile) => {
+    if (prof.zones && prof.zones.length === 4) {
+      setZones(prof.zones);
+      prof.zones.forEach((hex, idx) => {
+        const r = parseInt(hex.slice(1, 3), 16) || 0;
+        const g = parseInt(hex.slice(3, 5), 16) || 0;
+        const b = parseInt(hex.slice(5, 7), 16) || 0;
+        invoke("set_rgb_zone", { zone: idx + 1, r, g, b }).catch(console.error);
+      });
+    }
+    if (prof.effect) {
+      setSelectedEffect(prof.effect);
+      setEffectSpeed(prof.speed);
+      setEffectDirection(prof.direction);
+      applyDynamicEffect(prof.effect, prof.speed, prof.direction, prof.brightness);
+    }
+    if (prof.brightness !== undefined) {
+      setKbBrightness(prof.brightness);
+      invoke("set_kb_brightness", { pct: prof.brightness }).catch(console.error);
+    }
   };
 
   const mode = stats?.current_mode ?? "normal";
@@ -1503,18 +1663,37 @@ export default function App() {
              ══════════════════════════════════════════════════════════════════ */}
           {activeTab === "lighting" && (
             <div className="space-y-6">
-              {/* Presets Bar */}
-              <div className="p-4 rounded-xl bg-gradient-to-r from-[#0c121d] to-[#080d16] border border-[#172338] flex items-center justify-between">
-                <div className="flex items-center gap-2">
+              {/* Profile Control Bar */}
+              <div className="p-4 rounded-xl bg-gradient-to-r from-[#0c121d] to-[#080d16] border border-[#172338] flex flex-col xl:flex-row items-start xl:items-center justify-between gap-3">
+                <div className="flex flex-wrap items-center gap-2">
                   <span className="text-[10px] font-mono font-bold tracking-widest uppercase text-slate-400">
-                    PRESET PROFILES:
+                    PROFILES:
                   </span>
-                  <div className="flex gap-2">
-                    {PRESETS.map((p) => (
+                  {/* OEM Default Presets */}
+                  {PRESETS.map((p) => (
+                    <button
+                      key={p.name}
+                      onClick={() => applyPresetProfile(p)}
+                      className="px-2.5 py-1.5 rounded bg-[#101726] hover:bg-cyan-950/60 border border-[#1b273d] hover:border-cyan-500/50 text-xs font-mono font-semibold transition-all flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <div className="flex gap-0.5">
+                        {p.zones.map((c, idx) => (
+                          <span key={idx} className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: c }} />
+                        ))}
+                      </div>
+                      <span>{p.name}</span>
+                    </button>
+                  ))}
+
+                  {/* User Saved Profiles */}
+                  {profiles.map((p) => (
+                    <div
+                      key={p.id}
+                      className="group flex items-center rounded bg-[#10192a] border border-cyan-800/40 hover:border-cyan-400 text-xs font-mono font-semibold transition-all pl-2.5 pr-1 py-1"
+                    >
                       <button
-                        key={p.name}
-                        onClick={() => applyPresetProfile(p)}
-                        className="px-3 py-1.5 rounded bg-[#101726] hover:bg-cyan-950/60 border border-[#1b273d] hover:border-cyan-500/50 text-xs font-mono font-semibold transition-all flex items-center gap-2"
+                        onClick={() => applyLightingProfile(p)}
+                        className="flex items-center gap-1.5 text-cyan-300 hover:text-white cursor-pointer mr-1.5"
                       >
                         <div className="flex gap-0.5">
                           {p.zones.map((c, idx) => (
@@ -1523,16 +1702,44 @@ export default function App() {
                         </div>
                         <span>{p.name}</span>
                       </button>
-                    ))}
-                  </div>
+                      <button
+                        onClick={() => handleExportProfile(p)}
+                        title="Export profile JSON"
+                        className="p-1 text-slate-400 hover:text-cyan-300 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                      >
+                        <Download className="w-3 h-3" />
+                      </button>
+                      <button
+                        onClick={(e) => handleDeleteProfile(p.id, e)}
+                        title="Delete profile"
+                        className="p-1 text-slate-400 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  ))}
                 </div>
 
-                <button
-                  onClick={() => applyRgbToAll(zones[activeZone])}
-                  className="px-3 py-1.5 rounded bg-cyan-950 text-cyan-300 border border-cyan-500/40 text-xs font-mono font-bold hover:bg-cyan-900 transition-all"
-                >
-                  APPLY ACTIVE COLOR TO ALL 4 ZONES
-                </button>
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    onClick={() => setShowSaveProfileModal(true)}
+                    className="px-3 py-1.5 rounded bg-cyan-500 hover:bg-cyan-400 text-black font-mono font-bold text-xs flex items-center gap-1 transition-all shadow-md shadow-cyan-500/20 cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" /> SAVE AS PROFILE
+                  </button>
+                  <button
+                    onClick={handleImportProfile}
+                    className="px-3 py-1.5 rounded bg-[#101726] hover:bg-[#152033] border border-[#1d2b42] text-slate-300 hover:text-white text-xs font-mono flex items-center gap-1 transition-all cursor-pointer"
+                  >
+                    <Upload className="w-3.5 h-3.5" /> IMPORT
+                  </button>
+                  <button
+                    onClick={() => applyRgbToAll(zones[activeZone])}
+                    className="px-3 py-1.5 rounded bg-cyan-950 text-cyan-300 border border-cyan-500/40 text-xs font-mono font-bold hover:bg-cyan-900 transition-all cursor-pointer"
+                  >
+                    APPLY ACTIVE TO ALL
+                  </button>
+                </div>
               </div>
 
               {/* Realistic Chiclet Keyboard Visualizer */}
@@ -2012,13 +2219,21 @@ export default function App() {
              ══════════════════════════════════════════════════════════════════ */}
           {activeTab === "appcenter" && (
             <div className="space-y-6">
-              <div className="p-5 rounded-xl bg-gradient-to-b from-[#0c121d] to-[#080d16] border border-[#172338] shadow-xl">
-                <h3 className="font-bold text-sm font-mono text-slate-100 flex items-center gap-2">
-                  <Grid className="w-5 h-5 text-cyan-400" /> TACTICAL UTILITY LAUNCHPAD
-                </h3>
-                <p className="text-xs text-slate-400 font-mono mt-1">
-                  1-Click executable launcher for OEM hardware tools, GPU utilities, and streaming software.
-                </p>
+              <div className="p-5 rounded-xl bg-gradient-to-b from-[#0c121d] to-[#080d16] border border-[#172338] shadow-xl flex items-center justify-between">
+                <div>
+                  <h3 className="font-bold text-sm font-mono text-slate-100 flex items-center gap-2">
+                    <Grid className="w-5 h-5 text-cyan-400" /> TACTICAL UTILITY LAUNCHPAD
+                  </h3>
+                  <p className="text-xs text-slate-400 font-mono mt-1">
+                    1-Click executable launcher for OEM hardware tools, GPU utilities, and custom registered applications.
+                  </p>
+                </div>
+                <button
+                  onClick={() => setShowAddApp(true)}
+                  className="px-3.5 py-2 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-black font-mono font-bold text-xs flex items-center gap-1.5 transition-all shadow-md shadow-cyan-500/20 cursor-pointer shrink-0"
+                >
+                  <Plus className="w-4 h-4" /> ADD SHORTCUT (.EXE)
+                </button>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -2036,11 +2251,22 @@ export default function App() {
                         <span className="text-[9px] uppercase font-mono px-2 py-0.5 rounded bg-[#101726] border border-[#1b2638] text-slate-400 font-bold">
                           {app.category}
                         </span>
-                        <span className={`text-[9px] font-mono px-2 py-0.5 rounded font-bold ${
-                          app.installed ? "bg-emerald-950 text-emerald-400 border border-emerald-800/40" : "bg-slate-900 text-slate-500"
-                        }`}>
-                          {app.installed ? "READY" : "NOT DETECTED"}
-                        </span>
+                        <div className="flex items-center gap-1.5">
+                          <span className={`text-[9px] font-mono px-2 py-0.5 rounded font-bold ${
+                            app.installed ? "bg-emerald-950 text-emerald-400 border border-emerald-800/40" : "bg-slate-900 text-slate-500"
+                          }`}>
+                            {app.installed ? "READY" : "NOT DETECTED"}
+                          </span>
+                          {app.custom && (
+                            <button
+                              onClick={(e) => handleDeleteApp(app.id, e)}
+                              title="Delete custom shortcut"
+                              className="p-1 rounded hover:bg-red-950 text-slate-500 hover:text-red-400 border border-transparent hover:border-red-800/40 transition-all cursor-pointer"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </div>
                       </div>
                       <h4 className="font-bold text-slate-100 text-sm font-mono">{app.name}</h4>
                       <p className="text-xs text-slate-400 mt-1 line-clamp-2">{app.description}</p>
@@ -2322,6 +2548,138 @@ export default function App() {
                 className="px-4 py-2 rounded-lg text-xs font-mono font-black bg-cyan-500 text-black uppercase"
               >
                 SAVE FLIGHT PROFILE
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* ── Add Custom Application Shortcut Modal ── */}
+      {showAddApp && (
+        <div className="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-6">
+          <div className="w-full max-w-md bg-[#0a0f19] border border-cyan-500/40 rounded-2xl p-6 space-y-4 shadow-2xl">
+            <div className="flex justify-between items-center border-b border-[#152033] pb-3">
+              <h3 className="font-bold text-sm font-mono text-slate-100 flex items-center gap-2">
+                <Plus className="w-4 h-4 text-cyan-400" /> REGISTER CUSTOM APPLICATION
+              </h3>
+              <button
+                onClick={() => setShowAddApp(false)}
+                className="p-1 rounded text-slate-400 hover:text-white hover:bg-slate-800 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-3 font-mono text-xs">
+              <div>
+                <label className="text-slate-400 text-[11px] block mb-1">APPLICATION NAME</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Counter-Strike 2, Blender, Discord Canary"
+                  value={newAppName}
+                  onChange={(e) => setNewAppName(e.target.value)}
+                  className="w-full px-3 py-2 bg-[#06090f] border border-[#1b2638] rounded-lg text-slate-200 focus:border-cyan-400 outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="text-slate-400 text-[11px] block mb-1">EXECUTABLE PATH (.EXE)</label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    placeholder="C:\Games\Game.exe"
+                    value={newAppPath}
+                    onChange={(e) => setNewAppPath(e.target.value)}
+                    className="flex-1 px-3 py-2 bg-[#06090f] border border-[#1b2638] rounded-lg text-slate-200 text-[11px] focus:border-cyan-400 outline-none"
+                  />
+                  <button
+                    onClick={handleBrowseExe}
+                    className="px-3 py-2 bg-[#101826] hover:bg-cyan-950/80 text-cyan-300 border border-cyan-500/40 rounded-lg font-bold text-xs transition-all cursor-pointer whitespace-nowrap"
+                  >
+                    BROWSE
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-slate-400 text-[11px] block mb-1">CATEGORY</label>
+                <select
+                  value={newAppCategory}
+                  onChange={(e) => setNewAppCategory(e.target.value)}
+                  className="w-full px-3 py-2 bg-[#06090f] border border-[#1b2638] rounded-lg text-slate-200 text-xs focus:border-cyan-400 outline-none"
+                >
+                  <option value="GAME">GAME</option>
+                  <option value="UTILITY">UTILITY</option>
+                  <option value="MEDIA">MEDIA</option>
+                  <option value="BENCHMARK">BENCHMARK</option>
+                  <option value="TOOL">TOOL</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2 border-t border-[#152033]">
+              <button
+                onClick={() => setShowAddApp(false)}
+                className="px-4 py-2 rounded-lg bg-slate-800 text-slate-400 text-xs font-mono hover:text-white cursor-pointer"
+              >
+                CANCEL
+              </button>
+              <button
+                onClick={handleRegisterApp}
+                disabled={!newAppName.trim() || !newAppPath.trim()}
+                className="px-4 py-2 rounded-lg bg-cyan-500 hover:bg-cyan-400 disabled:opacity-40 text-black font-mono font-bold text-xs uppercase shadow-md shadow-cyan-500/20 cursor-pointer"
+              >
+                SAVE SHORTCUT
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Save Lighting Profile Modal ── */}
+      {showSaveProfileModal && (
+        <div className="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-6">
+          <div className="w-full max-w-sm bg-[#0a0f19] border border-cyan-500/40 rounded-2xl p-6 space-y-4 shadow-2xl">
+            <div className="flex justify-between items-center border-b border-[#152033] pb-3">
+              <h3 className="font-bold text-sm font-mono text-slate-100 flex items-center gap-2">
+                <Palette className="w-4 h-4 text-cyan-400" /> SAVE LIGHTING PROFILE
+              </h3>
+              <button
+                onClick={() => setShowSaveProfileModal(false)}
+                className="p-1 rounded text-slate-400 hover:text-white hover:bg-slate-800 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-3 font-mono text-xs">
+              <p className="text-slate-400 text-[11px] leading-relaxed">
+                Saves current 4-zone colors ({zones.join(", ")}), effect ({selectedEffect}), speed ({effectSpeed}), and brightness ({kbBrightness}%) to your persistent profile library.
+              </p>
+              <div>
+                <label className="text-slate-400 text-[11px] block mb-1">PROFILE NAME</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Cyberpunk Purple, Deep Stealth"
+                  value={newProfileName}
+                  onChange={(e) => setNewProfileName(e.target.value)}
+                  className="w-full px-3 py-2 bg-[#06090f] border border-[#1b2638] rounded-lg text-slate-200 focus:border-cyan-400 outline-none"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2 border-t border-[#152033]">
+              <button
+                onClick={() => setShowSaveProfileModal(false)}
+                className="px-4 py-2 rounded-lg bg-slate-800 text-slate-400 text-xs font-mono hover:text-white cursor-pointer"
+              >
+                CANCEL
+              </button>
+              <button
+                onClick={handleSaveProfile}
+                disabled={!newProfileName.trim()}
+                className="px-4 py-2 rounded-lg bg-cyan-500 hover:bg-cyan-400 disabled:opacity-40 text-black font-mono font-bold text-xs uppercase shadow-md shadow-cyan-500/20 cursor-pointer"
+              >
+                SAVE PROFILE
               </button>
             </div>
           </div>
