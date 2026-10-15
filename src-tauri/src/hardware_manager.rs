@@ -48,6 +48,10 @@ pub struct CachedState {
     pub boot_sound:          bool,
     pub coolboost:           bool,
     pub kb_brightness:       u8,
+    pub discrete_gpu:          bool,
+    pub backlight_timeout_30s: bool,
+    pub usb_charging:          bool,
+    pub temp_unit_f:           bool,
     pub lighting_effect:     String,
     pub lighting_speed:      u8,
     pub lighting_direction:  u8,
@@ -87,6 +91,10 @@ impl Default for CachedState {
             boot_sound:          true,
             coolboost:           false,
             kb_brightness:       100,
+            discrete_gpu:          false,
+            backlight_timeout_30s: false,
+            usb_charging:          false,
+            temp_unit_f:           false,
             lighting_effect:     "static".into(),
             lighting_speed:      2,
             lighting_direction:  1,
@@ -253,12 +261,14 @@ impl HardwareManager {
     fn poll_hardware(wmi: &AcerWmi, state: &Arc<RwLock<CachedState>>) {
         let (cpu_rpm, gpu_rpm, cpu_temp, gpu_temp) = wmi.get_hardware_health();
         let cur_mode = wmi.get_performance_mode();
+        let discrete_gpu = wmi.get_discrete_gpu();
         let mut s = state.write();
         if cpu_rpm > 0 { s.cpu_rpm = cpu_rpm; }
         if gpu_rpm > 0 { s.gpu_rpm = gpu_rpm; }
         if cpu_temp > 0.0 { s.cpu_temp = cpu_temp; }
         if gpu_temp > 0.0 { s.gpu_temp = gpu_temp; }
         s.current_mode = cur_mode;
+        s.discrete_gpu = discrete_gpu;
     }
 
     fn handle_cmd(cmd: WmiCmd, wmi: &AcerWmi, state: &Arc<RwLock<CachedState>>) {
@@ -377,6 +387,25 @@ impl HardwareManager {
                 s.lighting_direction = direction;
                 s.lighting_brightness = brightness;
             }
+
+            WmiCmd::SetDiscreteGpu(enable) => {
+                wmi.set_discrete_gpu(enable);
+                state.write().discrete_gpu = enable;
+            }
+
+            WmiCmd::SetBacklightTimeout(enable) => {
+                wmi.set_backlight_timeout(enable);
+                state.write().backlight_timeout_30s = enable;
+            }
+
+            WmiCmd::SetUsbCharging(enable) => {
+                wmi.set_usb_charging(enable);
+                state.write().usb_charging = enable;
+            }
+
+            WmiCmd::SetTempUnit(use_f) => {
+                state.write().temp_unit_f = use_f;
+            }
         }
     }
 
@@ -427,7 +456,11 @@ impl HardwareManager {
                 lcd_overdrive:       s.lcd_overdrive,
                 boot_sound:          s.boot_sound,
                 coolboost:           s.coolboost,
-                kb_brightness:       s.kb_brightness,
+                kb_brightness:         s.kb_brightness,
+                discrete_gpu:          s.discrete_gpu,
+                backlight_timeout_30s: s.backlight_timeout_30s,
+                usb_charging:          s.usb_charging,
+                temp_unit_f:           s.temp_unit_f,
             },
             lighting: LightingConfig {
                 effect:     s.lighting_effect.clone(),

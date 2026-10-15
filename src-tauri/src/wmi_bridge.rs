@@ -21,6 +21,12 @@ struct AcerGenericMethod {
 struct UiInput32 {
     uiInput: u32,
 }
+#[allow(non_snake_case)]
+#[derive(Serialize)]
+struct UiInput64 {
+    uiInput: u64,
+}
+
 
 #[allow(non_snake_case)]
 #[derive(Deserialize)]
@@ -321,6 +327,56 @@ impl AcerWmi {
             Err(_) => false,
         }
     }
+    /// Set Discrete GPU (MUX switch): 0 = Optimus / Dynamic, 1 = Discrete GPU only
+    pub fn set_discrete_gpu(&self, enable: bool) {
+        let payload: u64 = 2 | ((if enable { 1u64 } else { 0u64 }) << 8);
+        let _: Result<GmOutput32, _> = self.con.exec_instance_method::<AcerGamingFunction, _>(
+            &self.path,
+            "SetGamingMiscSetting",
+            GmInput64 { gmInput: payload },
+        );
+    }
+
+    /// Read Discrete GPU mode from ACPI: GetGamingMiscSetting(2)
+    pub fn get_discrete_gpu(&self) -> bool {
+        let res: Result<GmOutput64, WMIError> = self.con.exec_instance_method::<AcerGamingFunction, _>(
+            &self.path,
+            "GetGamingMiscSetting",
+            GmInput32 { gmInput: 2 },
+        );
+        match res {
+            Ok(out) => {
+                let raw = out.gmOutput.unwrap_or(0);
+                ((raw >> 8) & 0xFF) == 1
+            }
+            Err(_) => false,
+        }
+    }
+
+    /// Set 30s Keyboard Backlight Idle Timeout via AcerGenericMethod::SetFunction(8)
+    pub fn set_backlight_timeout(&self, enable: bool) {
+        if let Some(gp) = &self.generic_path {
+            let payload: u64 = 0x00080000 | (if enable { 1u64 << 16 } else { 0 });
+            let _: Result<UiOutput32, _> = self.con.exec_instance_method::<AcerGenericMethod, _>(
+                gp,
+                "SetFunction",
+                UiInput64 { uiInput: payload },
+            );
+        }
+    }
+
+    /// Set Power-off USB Device Charging via AcerGenericMethod::SetFunction(9)
+    pub fn set_usb_charging(&self, enable: bool) {
+        if let Some(gp) = &self.generic_path {
+            let payload: u64 = 0x00090000 | (if enable { 1u64 << 16 } else { 0 });
+            let _: Result<UiOutput32, _> = self.con.exec_instance_method::<AcerGenericMethod, _>(
+                gp,
+                "SetFunction",
+                UiInput64 { uiInput: payload },
+            );
+        }
+    }
+
 
     /// Set CoolBoost state on AcerGenericMethod
     pub fn set_coolboost(&self, enabled: bool) {

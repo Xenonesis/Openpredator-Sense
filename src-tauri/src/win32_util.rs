@@ -5,6 +5,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::mem::size_of;
 use std::ffi::c_void;
 use std::thread;
+use std::process::Command;
 
 pub static WIN_KEY_LOCKED: AtomicBool = AtomicBool::new(false);
 static HOOK_INITIALIZED: AtomicBool = AtomicBool::new(false);
@@ -124,4 +125,12 @@ pub fn set_sticky_keys(enabled: bool) {
             SystemParametersInfoW(SPI_SETSTICKYKEYS, size_of::<STICKYKEYS>() as u32, &mut sk as *mut _ as *mut c_void, SPIF_UPDATEINIFILE | SPIF_SENDCHANGE);
         }
     }
+}
+
+pub fn reboot_system() -> Result<(), String> {
+    Command::new("shutdown.exe")
+        .args(["/r", "/t", "3", "/c", "PredatorSense: Switching GPU Working Mode"])
+        .spawn()
+        .map(|_| ())
+        .map_err(|e| e.to_string())
 }

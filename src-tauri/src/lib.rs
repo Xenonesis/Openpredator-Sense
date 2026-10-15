@@ -94,6 +94,31 @@ fn set_lighting_effect(
 }
 
 #[tauri::command]
+fn set_discrete_gpu(enabled: bool, mgr: State<'_, Arc<HardwareManager>>) {
+    mgr.send(WmiCmd::SetDiscreteGpu(enabled));
+}
+
+#[tauri::command]
+fn set_backlight_timeout(enabled: bool, mgr: State<'_, Arc<HardwareManager>>) {
+    mgr.send(WmiCmd::SetBacklightTimeout(enabled));
+}
+
+#[tauri::command]
+fn set_usb_charging(enabled: bool, mgr: State<'_, Arc<HardwareManager>>) {
+    mgr.send(WmiCmd::SetUsbCharging(enabled));
+}
+
+#[tauri::command]
+fn set_temp_unit(use_f: bool, mgr: State<'_, Arc<HardwareManager>>) {
+    mgr.send(WmiCmd::SetTempUnit(use_f));
+}
+
+#[tauri::command]
+fn system_reboot() -> Result<(), String> {
+    win32_util::reboot_system()
+}
+
+#[tauri::command]
 fn scan_installed_games() -> Vec<GameProfile> {
     GameScanner::scan_all()
 }
@@ -157,6 +182,11 @@ pub fn run() {
             set_kb_brightness,
             set_rgb_zone,
             set_lighting_effect,
+            set_discrete_gpu,
+            set_backlight_timeout,
+            set_usb_charging,
+            set_temp_unit,
+            system_reboot,
             scan_installed_games,
             get_app_center_items,
             launch_app,

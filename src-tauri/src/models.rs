@@ -34,6 +34,10 @@ pub struct QuickSettings {
     pub boot_sound: bool,
     pub coolboost: bool,
     pub kb_brightness: u8,
+    pub discrete_gpu: bool,
+    pub backlight_timeout_30s: bool,
+    pub usb_charging: bool,
+    pub temp_unit_f: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -102,5 +106,9 @@ pub enum WmiCmd {
         g: u8,
         b: u8,
     },
+    SetDiscreteGpu(bool),
+    SetBacklightTimeout(bool),
+    SetUsbCharging(bool),
+    SetTempUnit(bool),
     PollHardware,
 }
