@@ -7,7 +7,7 @@ import {
   Grid, Settings as SettingsIcon, Lock, Unlock,
   Volume2, VolumeX, ArrowDown, ArrowUp,
   RefreshCw, Play, X, ShieldAlert,
-  Radio, Minus, Plus, Square, Copy,
+  Radio, Minus, Plus, Square, Copy, Thermometer,
 } from "lucide-react";
 import "./App.css";
 
@@ -29,6 +29,10 @@ export interface QuickSettings {
   boot_sound: boolean;
   coolboost: boolean;
   kb_brightness: number;
+  discrete_gpu: boolean;
+  backlight_timeout_30s: boolean;
+  usb_charging: boolean;
+  temp_unit_f: boolean;
 }
 
 export interface NetworkStats {
@@ -326,6 +330,7 @@ function AeroBladeTachometer({
   temp,
   mode,
   theme = "cyan",
+  tempUnit = "°C",
 }: {
   rpm: number;
   maxRpm?: number;
@@ -334,6 +339,7 @@ function AeroBladeTachometer({
   temp: number;
   mode: FanMode;
   theme?: "cyan" | "purple";
+  tempUnit?: "°C" | "°F";
 }) {
   const pct = Math.min(1, Math.max(0, rpm / maxRpm));
   const r = 68, cx = 90, cy = 90;
@@ -474,7 +480,7 @@ function AeroBladeTachometer({
           <span>{label} CORE</span>
         </span>
         <span className="font-bold text-slate-200">
-          {temp > 0 ? `${temp.toFixed(0)}°C` : "—"}
+          {temp > 0 ? (tempUnit === "°F" ? `${Math.round(temp * 1.8 + 32)}°F` : `${temp.toFixed(0)}°C`) : "—"}
         </span>
       </div>
     </div>
@@ -544,6 +550,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<"home" | "fans" | "lighting" | "monitoring" | "gamesync" | "appcenter">("home");
   const [showSettings, setShowSettings] = useState(false);
   const [showModesIntro, setShowModesIntro] = useState(false);
+  const [showRebootModal, setShowRebootModal] = useState(false);
   const [isMaximized, setIsMaximized] = useState(false);
 
   useEffect(() => {
@@ -690,6 +697,40 @@ export default function App() {
     const next = !(stats?.settings.boot_sound ?? true);
     invoke("set_boot_sound", { enabled: next }).catch(console.error);
     if (stats) setStats({ ...stats, settings: { ...stats.settings, boot_sound: next } });
+  };
+
+  const toggleDiscreteGpu = () => {
+    const next = !(stats?.settings.discrete_gpu ?? false);
+    invoke("set_discrete_gpu", { enabled: next }).catch(console.error);
+    if (stats) setStats({ ...stats, settings: { ...stats.settings, discrete_gpu: next } });
+    setShowRebootModal(true);
+  };
+
+  const toggleBacklightTimeout = () => {
+    const next = !(stats?.settings.backlight_timeout_30s ?? false);
+    invoke("set_backlight_timeout", { enabled: next }).catch(console.error);
+    if (stats) setStats({ ...stats, settings: { ...stats.settings, backlight_timeout_30s: next } });
+  };
+
+  const toggleUsbCharging = () => {
+    const next = !(stats?.settings.usb_charging ?? false);
+    invoke("set_usb_charging", { enabled: next }).catch(console.error);
+    if (stats) setStats({ ...stats, settings: { ...stats.settings, usb_charging: next } });
+  };
+
+  const toggleTempUnit = () => {
+    const next = !(stats?.settings.temp_unit_f ?? false);
+    invoke("set_temp_unit", { useF: next }).catch(console.error);
+    if (stats) setStats({ ...stats, settings: { ...stats.settings, temp_unit_f: next } });
+  };
+
+  const isF = stats?.settings.temp_unit_f ?? false;
+  const formatTemp = (celsius: number) => {
+    if (celsius <= 0) return "—";
+    if (isF) {
+      return `${Math.round(celsius * 1.8 + 32)}°F`;
+    }
+    return `${Math.round(celsius)}°C`;
   };
 
   const handleBrightnessChange = (val: number) => {
@@ -993,12 +1034,12 @@ export default function App() {
             <div className="hidden lg:flex items-center gap-3 text-xs font-mono bg-[#0b101a] px-3 py-1.5 rounded-lg border border-[#162236]">
               <span className="flex items-center gap-1 text-slate-300">
                 <Cpu className="w-3.5 h-3.5 text-cyan-400" />
-                <strong className="text-cyan-300">{Math.round(stats?.cpu_temp ?? 0)}°C</strong>
+                <strong className="text-cyan-300">{formatTemp(stats?.cpu_temp ?? 0)}</strong>
               </span>
               <span className="text-slate-600">|</span>
               <span className="flex items-center gap-1 text-slate-300">
                 <Flame className="w-3.5 h-3.5 text-orange-400" />
-                <strong className="text-orange-400">{Math.round(stats?.gpu_temp ?? 0)}°C</strong>
+                <strong className="text-orange-400">{formatTemp(stats?.gpu_temp ?? 0)}</strong>
               </span>
               <span className="text-slate-600">|</span>
               <span className="flex items-center gap-1 text-emerald-400">
@@ -1158,6 +1199,22 @@ export default function App() {
                 </div>
               </div>
 
+              {/* Dual AeroBlade Tachometers Header with Quick Temp Unit Switch */}
+              <div className="flex items-center justify-between px-1">
+                <span className="text-[11px] font-mono tracking-widest uppercase text-slate-400 flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-cyan-400" />
+                  AEROBLADE 3D INSTRUMENTS
+                </span>
+                <button
+                  onClick={toggleTempUnit}
+                  className="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-[#0e1625] border border-[#1b2a40] text-cyan-300 hover:border-cyan-400 hover:bg-[#131d30] transition-all flex items-center gap-1.5 cursor-pointer"
+                  title="Toggle Global Temperature Unit Scale (°C / °F)"
+                >
+                  <Thermometer className="w-3 h-3 text-cyan-400" />
+                  <span>SCALE: {isF ? "°F (FAHRENHEIT)" : "°C (CELSIUS)"}</span>
+                </button>
+              </div>
+
               {/* Dual AeroBlade Tachometers */}
               <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 lg:gap-6">
                 <AeroBladeTachometer
@@ -1167,6 +1224,7 @@ export default function App() {
                   temp={stats.cpu_temp}
                   mode={stats.fans.cpu.mode}
                   theme="cyan"
+                  tempUnit={isF ? "°F" : "°C"}
                 />
                 <AeroBladeTachometer
                   rpm={stats.fans.gpu.speed_rpm}
@@ -1175,9 +1233,9 @@ export default function App() {
                   temp={stats.gpu_temp}
                   mode={stats.fans.gpu.mode}
                   theme="purple"
+                  tempUnit={isF ? "°F" : "°C"}
                 />
               </div>
-
               {/* 4 Precision Telemetry Cards */}
               <div className="grid grid-cols-2 xl:grid-cols-4 gap-3 lg:gap-4">
                 <TacticalStatCard
@@ -1187,7 +1245,7 @@ export default function App() {
                   max={100}
                   unit="%"
                   color="#00e5ff"
-                  extra={`${stats.cpu_temp.toFixed(0)}°C PKG`}
+                  extra={`${formatTemp(stats.cpu_temp)} PKG`}
                 />
                 <TacticalStatCard
                   title="GPU CORE CLOCK"
@@ -1777,7 +1835,7 @@ export default function App() {
                   <div className="grid grid-cols-2 gap-3 pt-3 border-t border-[#131c2c] text-xs font-mono">
                     <div className="p-2.5 rounded bg-[#090d16] border border-[#141d2d]">
                       <span className="text-[10px] text-slate-500 block">PACKAGE TEMPERATURE</span>
-                      <strong className="text-sm text-orange-400">{stats.cpu_temp.toFixed(0)}°C</strong>
+                      <strong className="text-sm text-orange-400">{formatTemp(stats.cpu_temp)}</strong>
                     </div>
                     <div className="p-2.5 rounded bg-[#090d16] border border-[#141d2d]">
                       <span className="text-[10px] text-slate-500 block">FAN 01 SPEED</span>
@@ -1804,10 +1862,9 @@ export default function App() {
                   <div className="grid grid-cols-2 gap-3 pt-3 border-t border-[#131c2c] text-xs font-mono">
                     <div className="p-2.5 rounded bg-[#090d16] border border-[#141d2d]">
                       <span className="text-[10px] text-slate-500 block">CORE TEMPERATURE</span>
-                      <strong className="text-sm text-purple-400">{stats.gpu_temp.toFixed(0)}°C</strong>
+                      <strong className="text-sm text-purple-400">{formatTemp(stats.gpu_temp)}</strong>
                     </div>
                     <div className="p-2.5 rounded bg-[#090d16] border border-[#141d2d]">
-                      <span className="text-[10px] text-slate-500 block">VRAM FREQUENCY</span>
                       <strong className="text-sm text-teal-400">{stats.vram_clock_mhz > 0 ? `${stats.vram_clock_mhz} MHz` : "STANDBY"}</strong>
                     </div>
                   </div>
@@ -2013,29 +2070,29 @@ export default function App() {
       {/* ── Settings Modal ── */}
       {showSettings && (
         <div className="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-6">
-          <div className="w-full max-w-lg bg-[#0a0f19] border border-cyan-500/40 rounded-2xl p-6 space-y-6 shadow-[0_0_50px_rgba(0,0,0,0.9)]">
+          <div className="w-full max-w-2xl bg-[#0a0f19] border border-cyan-500/40 rounded-2xl p-6 space-y-5 shadow-[0_0_50px_rgba(0,0,0,0.9)] max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center border-b border-[#152033] pb-4">
               <h2 className="text-base font-bold font-mono text-slate-100 flex items-center gap-2">
-                <SettingsIcon className="w-5 h-5 text-cyan-400" /> SYSTEM ARCHITECTURE & ACPI FIRMWARE
+                <SettingsIcon className="w-5 h-5 text-cyan-400" /> SYSTEM ARCHITECTURE & ACPI HARDWARE TOGGLES
               </h2>
               <button
                 onClick={() => setShowSettings(false)}
-                className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800"
+                className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <div className="space-y-3.5">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
               {/* Windows Key Lock */}
               <div className="flex items-center justify-between p-3.5 rounded-xl bg-[#06090f] border border-[#141d2d]">
-                <div>
-                  <p className="text-xs font-bold font-mono text-slate-200">WINDOWS KEY GAMING LOCK</p>
-                  <p className="text-[11px] text-slate-400 font-mono">Disables Windows Key via ACPI Profile & Low-Level WH_KEYBOARD Hook.</p>
+                <div className="pr-2">
+                  <p className="text-xs font-bold font-mono text-slate-200">WIN KEY GAMING LOCK</p>
+                  <p className="text-[10px] text-slate-400 font-mono mt-0.5">Disables Windows Key via ACPI Profile & Low-Level WH_KEYBOARD Hook.</p>
                 </div>
                 <button
                   onClick={toggleWinKeyLock}
-                  className={`w-11 h-6 rounded-full relative transition-all border ${
+                  className={`w-11 h-6 rounded-full relative transition-all border shrink-0 cursor-pointer ${
                     stats?.settings.win_key_locked ? "bg-cyan-500 border-cyan-400" : "bg-slate-800 border-slate-700"
                   }`}
                 >
@@ -2047,13 +2104,13 @@ export default function App() {
 
               {/* Sticky Keys Lock */}
               <div className="flex items-center justify-between p-3.5 rounded-xl bg-[#06090f] border border-[#141d2d]">
-                <div>
-                  <p className="text-xs font-bold font-mono text-slate-200">STICKY KEYS POPUP SUPPRESSION</p>
-                  <p className="text-[11px] text-slate-400 font-mono">Locks 5x Shift key accessibility prompt via Win32 SystemParametersInfo.</p>
+                <div className="pr-2">
+                  <p className="text-xs font-bold font-mono text-slate-200">STICKY KEYS SUPPRESSION</p>
+                  <p className="text-[10px] text-slate-400 font-mono mt-0.5">Locks 5x Shift accessibility prompt via Win32 SystemParametersInfo.</p>
                 </div>
                 <button
                   onClick={toggleStickyKeys}
-                  className={`w-11 h-6 rounded-full relative transition-all border ${
+                  className={`w-11 h-6 rounded-full relative transition-all border shrink-0 cursor-pointer ${
                     !stats?.settings.sticky_keys_enabled ? "bg-cyan-500 border-cyan-400" : "bg-slate-800 border-slate-700"
                   }`}
                 >
@@ -2065,13 +2122,13 @@ export default function App() {
 
               {/* LCD OverDrive */}
               <div className="flex items-center justify-between p-3.5 rounded-xl bg-[#06090f] border border-[#141d2d]">
-                <div>
+                <div className="pr-2">
                   <p className="text-xs font-bold font-mono text-slate-200">LCD 3ms PANEL OVERDRIVE</p>
-                  <p className="text-[11px] text-slate-400 font-mono">Voltage overdrive on Acer display panel for reduced ghosting.</p>
+                  <p className="text-[10px] text-slate-400 font-mono mt-0.5">Voltage overdrive on Acer display panel for reduced ghosting.</p>
                 </div>
                 <button
                   onClick={toggleLcdOverdrive}
-                  className={`w-11 h-6 rounded-full relative transition-all border ${
+                  className={`w-11 h-6 rounded-full relative transition-all border shrink-0 cursor-pointer ${
                     stats?.settings.lcd_overdrive ? "bg-cyan-500 border-cyan-400" : "bg-slate-800 border-slate-700"
                   }`}
                 >
@@ -2083,18 +2140,95 @@ export default function App() {
 
               {/* Boot Sound */}
               <div className="flex items-center justify-between p-3.5 rounded-xl bg-[#06090f] border border-[#141d2d]">
-                <div>
+                <div className="pr-2">
                   <p className="text-xs font-bold font-mono text-slate-200">BIOS BOOT ROAR CHIME</p>
-                  <p className="text-[11px] text-slate-400 font-mono">Plays Predator logo chime during BIOS power-on self-test.</p>
+                  <p className="text-[10px] text-slate-400 font-mono mt-0.5">Plays Predator logo audio chime during BIOS power-on self-test.</p>
                 </div>
                 <button
                   onClick={toggleBootSound}
-                  className={`w-11 h-6 rounded-full relative transition-all border ${
+                  className={`w-11 h-6 rounded-full relative transition-all border shrink-0 cursor-pointer ${
                     stats?.settings.boot_sound ? "bg-cyan-500 border-cyan-400" : "bg-slate-800 border-slate-700"
                   }`}
                 >
                   <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white transition-all ${
                     stats?.settings.boot_sound ? "left-5" : "left-0.5"
+                  }`} />
+                </button>
+              </div>
+
+              {/* Discrete GPU (MUX Switch) */}
+              <div className="flex items-center justify-between p-3.5 rounded-xl bg-[#06090f] border border-amber-500/30 hover:border-amber-500/60 transition-all">
+                <div className="pr-2">
+                  <div className="flex items-center gap-2">
+                    <p className="text-xs font-bold font-mono text-amber-300">DISCRETE GPU (MUX)</p>
+                    <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-amber-950 text-amber-400 border border-amber-700/50">
+                      REBOOT REQ
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-slate-400 font-mono mt-0.5">Hardware MUX switch: toggle between Optimus (Dynamic) and dGPU Only.</p>
+                </div>
+                <button
+                  onClick={toggleDiscreteGpu}
+                  className={`w-11 h-6 rounded-full relative transition-all border shrink-0 cursor-pointer ${
+                    stats?.settings.discrete_gpu ? "bg-amber-500 border-amber-400 shadow-[0_0_10px_rgba(245,158,11,0.4)]" : "bg-slate-800 border-slate-700"
+                  }`}
+                >
+                  <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white transition-all ${
+                    stats?.settings.discrete_gpu ? "left-5" : "left-0.5"
+                  }`} />
+                </button>
+              </div>
+
+              {/* 30s Backlight Timeout */}
+              <div className="flex items-center justify-between p-3.5 rounded-xl bg-[#06090f] border border-[#141d2d]">
+                <div className="pr-2">
+                  <p className="text-xs font-bold font-mono text-slate-200">30S BACKLIGHT TIMEOUT</p>
+                  <p className="text-[10px] text-slate-400 font-mono mt-0.5">Powers off keyboard illumination after 30 seconds of inactivity.</p>
+                </div>
+                <button
+                  onClick={toggleBacklightTimeout}
+                  className={`w-11 h-6 rounded-full relative transition-all border shrink-0 cursor-pointer ${
+                    stats?.settings.backlight_timeout_30s ? "bg-cyan-500 border-cyan-400" : "bg-slate-800 border-slate-700"
+                  }`}
+                >
+                  <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white transition-all ${
+                    stats?.settings.backlight_timeout_30s ? "left-5" : "left-0.5"
+                  }`} />
+                </button>
+              </div>
+
+              {/* Power-off USB Charging */}
+              <div className="flex items-center justify-between p-3.5 rounded-xl bg-[#06090f] border border-[#141d2d]">
+                <div className="pr-2">
+                  <p className="text-xs font-bold font-mono text-slate-200">POWER-OFF USB CHARGING</p>
+                  <p className="text-[10px] text-slate-400 font-mono mt-0.5">Supplies power to USB ports while laptop is asleep or powered off.</p>
+                </div>
+                <button
+                  onClick={toggleUsbCharging}
+                  className={`w-11 h-6 rounded-full relative transition-all border shrink-0 cursor-pointer ${
+                    stats?.settings.usb_charging ? "bg-cyan-500 border-cyan-400" : "bg-slate-800 border-slate-700"
+                  }`}
+                >
+                  <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white transition-all ${
+                    stats?.settings.usb_charging ? "left-5" : "left-0.5"
+                  }`} />
+                </button>
+              </div>
+
+              {/* Global Temperature Unit Scale */}
+              <div className="flex items-center justify-between p-3.5 rounded-xl bg-[#06090f] border border-[#141d2d]">
+                <div className="pr-2">
+                  <p className="text-xs font-bold font-mono text-slate-200">TEMP SCALE (°C / °F)</p>
+                  <p className="text-[10px] text-slate-400 font-mono mt-0.5">Switch all telemetry and tachometer readouts to Fahrenheit.</p>
+                </div>
+                <button
+                  onClick={toggleTempUnit}
+                  className={`w-11 h-6 rounded-full relative transition-all border shrink-0 cursor-pointer ${
+                    stats?.settings.temp_unit_f ? "bg-cyan-500 border-cyan-400" : "bg-slate-800 border-slate-700"
+                  }`}
+                >
+                  <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white transition-all ${
+                    stats?.settings.temp_unit_f ? "left-5" : "left-0.5"
                   }`} />
                 </button>
               </div>
@@ -2105,6 +2239,40 @@ export default function App() {
               <span>
                 Hardware commands execute directly on root\wmi:AcerGamingFunction with kernel elevation.
               </span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── MUX Switch Reboot Modal ── */}
+      {showRebootModal && (
+        <div className="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-6">
+          <div className="w-full max-w-md bg-[#0a0f19] border-2 border-amber-500/80 rounded-2xl p-6 space-y-5 shadow-[0_0_50px_rgba(245,158,11,0.25)]">
+            <div className="flex items-center gap-3 border-b border-[#1f293d] pb-3">
+              <ShieldAlert className="w-6 h-6 text-amber-400 animate-pulse shrink-0" />
+              <h3 className="font-bold text-sm font-mono text-amber-300 tracking-wider">
+                [ MUX SWITCH: SYSTEM REBOOT REQUIRED ]
+              </h3>
+            </div>
+            <p className="text-xs text-slate-300 font-mono leading-relaxed">
+              Switching the internal display multiplexer between NVIDIA Discrete GPU and Dynamic Optimus requires a system restart for BIOS display pipeline re-routing.
+            </p>
+            <div className="p-3 rounded-lg bg-[#14120a] border border-amber-500/30 text-[11px] font-mono text-amber-200/90">
+              ⚡ ACPI BIOS setting has been staged. A reboot is needed for the hardware MUX switch to take effect.
+            </div>
+            <div className="flex gap-3 pt-2">
+              <button
+                onClick={() => invoke("system_reboot").catch(console.error)}
+                className="flex-1 py-2.5 px-4 bg-amber-500 hover:bg-amber-400 text-black font-bold font-mono text-xs rounded-lg transition-all shadow-[0_0_15px_rgba(245,158,11,0.4)] uppercase cursor-pointer"
+              >
+                RESTART NOW
+              </button>
+              <button
+                onClick={() => setShowRebootModal(false)}
+                className="px-5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-mono text-xs font-semibold rounded-lg border border-slate-600 transition-all cursor-pointer"
+              >
+                LATER
+              </button>
             </div>
           </div>
         </div>
