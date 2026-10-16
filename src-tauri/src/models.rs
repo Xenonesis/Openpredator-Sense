@@ -108,6 +108,34 @@ pub struct FanStats {
     pub coolboost: bool,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TelemetrySample {
+    pub timestamp: u64,
+    pub cpu_temp: f32,
+    pub cpu_usage: f32,
+    pub gpu_temp: f32,
+    pub gpu_usage: f32,
+    pub ram_used_gb: f32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MetricStats {
+    pub min: f32,
+    pub max: f32,
+    pub avg: f32,
+    pub current: f32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TelemetryHistoryResponse {
+    pub samples: Vec<TelemetrySample>,
+    pub cpu_temp: MetricStats,
+    pub cpu_usage: MetricStats,
+    pub gpu_temp: MetricStats,
+    pub gpu_usage: MetricStats,
+    pub ram: MetricStats,
+}
+
 // Commands sent from Tauri handlers to the WMI worker thread
 pub enum WmiCmd {
     SetPerformanceMode(PerformanceMode),

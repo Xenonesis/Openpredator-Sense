@@ -8,7 +8,7 @@ pub mod app_center;
 pub mod lighting_profiles;
 use std::sync::Arc;
 use tauri::State;
-use crate::models::{FanMode, PerformanceMode, SystemStats, WmiCmd};
+use crate::models::{FanMode, PerformanceMode, SystemStats, TelemetryHistoryResponse, WmiCmd};
 use crate::hardware_manager::HardwareManager;
 use crate::game_sync::{GameProfile, GameScanner};
 use crate::app_center::{AppCenter, AppItem};
@@ -112,6 +112,16 @@ fn set_usb_charging(enabled: bool, mgr: State<'_, Arc<HardwareManager>>) {
 #[tauri::command]
 fn set_temp_unit(use_f: bool, mgr: State<'_, Arc<HardwareManager>>) {
     mgr.send(WmiCmd::SetTempUnit(use_f));
+}
+
+#[tauri::command]
+fn get_telemetry_history(timeframe: String, mgr: State<'_, Arc<HardwareManager>>) -> TelemetryHistoryResponse {
+    mgr.get_telemetry_history(&timeframe)
+}
+
+#[tauri::command]
+fn clear_telemetry_history(mgr: State<'_, Arc<HardwareManager>>) {
+    mgr.clear_telemetry_history();
 }
 
 #[tauri::command]
@@ -249,6 +259,8 @@ pub fn run() {
             delete_lighting_profile,
             export_lighting_profile,
             import_lighting_profile,
+            get_telemetry_history,
+            clear_telemetry_history,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

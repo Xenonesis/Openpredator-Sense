@@ -2,15 +2,16 @@
 //! All WMI calls happen on that one thread via an mpsc channel.
 //! Tauri commands read/write shared cached state instantly without blocking.
 
+use std::collections::VecDeque;
 use std::sync::{Arc, mpsc};
 use std::thread;
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use parking_lot::RwLock;
 use sysinfo::{CpuRefreshKind, MemoryRefreshKind, Networks, RefreshKind, System};
 
 use crate::models::{
-    FanChannel, FanMode, FanStats, LightingConfig, NetworkStats, PerformanceMode,
-    QuickSettings, SystemStats, WmiCmd,
+    FanChannel, FanMode, FanStats, LightingConfig, MetricStats, NetworkStats, PerformanceMode,
+    QuickSettings, SystemStats, TelemetryHistoryResponse, TelemetrySample, WmiCmd,
 };
 use crate::wmi_bridge::AcerWmi;
 use crate::win32_util;
@@ -58,6 +59,11 @@ pub struct CachedState {
     pub lighting_brightness: u8,
     pub lighting_zones:      Vec<String>,
     pub wmi_ok:              bool,
+    pub samples_recent:      VecDeque<TelemetrySample>,
+    pub samples_1h:          VecDeque<TelemetrySample>,
+    pub samples_24h:         VecDeque<TelemetrySample>,
+    pub last_sample_1h:      Instant,
+    pub last_sample_24h:     Instant,
 }
 
 impl Default for CachedState {
@@ -106,6 +112,11 @@ impl Default for CachedState {
                 "#00AEC7".into(),
             ],
             wmi_ok:              false,
+            samples_recent:      VecDeque::with_capacity(60),
+            samples_1h:          VecDeque::with_capacity(60),
+            samples_24h:         VecDeque::with_capacity(288),
+            last_sample_1h:      Instant::now(),
+            last_sample_24h:     Instant::now(),
         }
     }
 }
@@ -213,6 +224,41 @@ impl HardwareManager {
                     }
                     if vram_clock > 0 {
                         s.vram_clock_mhz = vram_clock;
+                    }
+
+                    let now = SystemTime::now()
+                        .duration_since(UNIX_EPOCH)
+                        .unwrap_or_default()
+                        .as_secs();
+
+                    let sample = TelemetrySample {
+                        timestamp: now,
+                        cpu_temp: s.cpu_temp,
+                        cpu_usage: s.cpu_usage,
+                        gpu_temp: s.gpu_temp,
+                        gpu_usage: s.gpu_usage,
+                        ram_used_gb: s.ram_used_gb,
+                    };
+
+                    s.samples_recent.push_back(sample.clone());
+                    while s.samples_recent.len() > 60 {
+                        s.samples_recent.pop_front();
+                    }
+
+                    if s.last_sample_1h.elapsed() >= Duration::from_secs(60) {
+                        s.samples_1h.push_back(sample.clone());
+                        while s.samples_1h.len() > 60 {
+                            s.samples_1h.pop_front();
+                        }
+                        s.last_sample_1h = Instant::now();
+                    }
+
+                    if s.last_sample_24h.elapsed() >= Duration::from_secs(300) {
+                        s.samples_24h.push_back(sample);
+                        while s.samples_24h.len() > 288 {
+                            s.samples_24h.pop_front();
+                        }
+                        s.last_sample_24h = Instant::now();
                     }
                 }
             });
@@ -476,5 +522,184 @@ impl HardwareManager {
 
     pub fn send(&self, cmd: WmiCmd) {
         let _ = self.tx.send(cmd);
+    }
+
+    pub fn get_telemetry_history(&self, timeframe: &str) -> TelemetryHistoryResponse {
+        let s = self.state.read();
+        let samples: Vec<TelemetrySample> = if timeframe.eq_ignore_ascii_case("24h") {
+            s.samples_24h.iter().cloned().collect()
+        } else {
+            if s.samples_1h.len() < 2 {
+                s.samples_recent.iter().cloned().collect()
+            } else {
+                s.samples_1h.iter().cloned().collect()
+            }
+        };
+
+        let cpu_temps: Vec<f32> = samples.iter().map(|item| item.cpu_temp).collect();
+        let cpu_usages: Vec<f32> = samples.iter().map(|item| item.cpu_usage).collect();
+        let gpu_temps: Vec<f32> = samples.iter().map(|item| item.gpu_temp).collect();
+        let gpu_usages: Vec<f32> = samples.iter().map(|item| item.gpu_usage).collect();
+        let rams: Vec<f32> = samples.iter().map(|item| item.ram_used_gb).collect();
+
+        let cpu_temp = calculate_metric_stats(&cpu_temps, s.cpu_temp);
+        let cpu_usage = calculate_metric_stats(&cpu_usages, s.cpu_usage);
+        let gpu_temp = calculate_metric_stats(&gpu_temps, s.gpu_temp);
+        let gpu_usage = calculate_metric_stats(&gpu_usages, s.gpu_usage);
+        let ram = calculate_metric_stats(&rams, s.ram_used_gb);
+
+        TelemetryHistoryResponse {
+            samples,
+            cpu_temp,
+            cpu_usage,
+            gpu_temp,
+            gpu_usage,
+            ram,
+        }
+    }
+
+    pub fn clear_telemetry_history(&self) {
+        let mut s = self.state.write();
+        s.samples_recent.clear();
+        s.samples_1h.clear();
+        s.samples_24h.clear();
+        s.last_sample_1h = Instant::now();
+        s.last_sample_24h = Instant::now();
+    }
+}
+
+fn calculate_metric_stats(values: &[f32], current: f32) -> MetricStats {
+    if values.is_empty() {
+        return MetricStats {
+            min: current,
+            max: current,
+            avg: current,
+            current,
+        };
+    }
+    let non_zero_min = values.iter().copied().filter(|&v| v > 0.0).fold(f32::INFINITY, f32::min);
+    let min = if non_zero_min.is_finite() {
+        non_zero_min
+    } else {
+        let m = values.iter().copied().fold(f32::INFINITY, f32::min);
+        if m.is_finite() { m } else { current }
+    };
+    let max = values.iter().copied().fold(f32::NEG_INFINITY, f32::max);
+    let max = if max.is_finite() { max } else { current };
+    let avg = values.iter().sum::<f32>() / (values.len() as f32);
+
+    MetricStats {
+        min,
+        max,
+        avg,
+        current,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_calculate_metric_stats_empty() {
+        let stats = calculate_metric_stats(&[], 45.0);
+        assert_eq!(stats.min, 45.0);
+        assert_eq!(stats.max, 45.0);
+        assert_eq!(stats.avg, 45.0);
+        assert_eq!(stats.current, 45.0);
+    }
+
+    #[test]
+    fn test_calculate_metric_stats_values() {
+        let vals = vec![40.0, 50.0, 60.0];
+        let stats = calculate_metric_stats(&vals, 55.0);
+        assert_eq!(stats.min, 40.0);
+        assert_eq!(stats.max, 60.0);
+        assert_eq!(stats.avg, 50.0);
+        assert_eq!(stats.current, 55.0);
+    }
+
+    #[test]
+    fn test_calculate_metric_stats_filters_zero_min() {
+        let vals = vec![0.0, 42.0, 58.0];
+        let stats = calculate_metric_stats(&vals, 50.0);
+        assert_eq!(stats.min, 42.0);
+        assert_eq!(stats.max, 58.0);
+        assert_eq!(stats.current, 50.0);
+    }
+
+    #[test]
+    fn test_get_telemetry_history_fallback_and_selection() {
+        let (tx, _rx) = mpsc::channel();
+        let hm = HardwareManager {
+            state: Arc::new(RwLock::new(CachedState::default())),
+            tx,
+        };
+
+        let sample1 = TelemetrySample {
+            timestamp: 100,
+            cpu_temp: 45.0,
+            cpu_usage: 10.0,
+            gpu_temp: 40.0,
+            gpu_usage: 5.0,
+            ram_used_gb: 8.0,
+        };
+        let sample2 = TelemetrySample {
+            timestamp: 101,
+            cpu_temp: 55.0,
+            cpu_usage: 20.0,
+            gpu_temp: 48.0,
+            gpu_usage: 15.0,
+            ram_used_gb: 8.5,
+        };
+
+        // Empty 1h buffer -> falls back to recent
+        {
+            let mut s = hm.state.write();
+            s.samples_recent.push_back(sample1.clone());
+            s.samples_recent.push_back(sample2.clone());
+        }
+        let res1 = hm.get_telemetry_history("1h");
+        assert_eq!(res1.samples.len(), 2);
+        assert_eq!(res1.cpu_temp.min, 45.0);
+        assert_eq!(res1.cpu_temp.max, 55.0);
+
+        // Only 1 item in 1h buffer -> still falls back to recent
+        {
+            let mut s = hm.state.write();
+            s.samples_1h.push_back(sample1.clone());
+        }
+        let res2 = hm.get_telemetry_history("1h");
+        assert_eq!(res2.samples.len(), 2); // recent has 2
+
+        // 2 items in 1h buffer -> uses 1h buffer
+        let sample3 = TelemetrySample {
+            timestamp: 102,
+            cpu_temp: 65.0,
+            cpu_usage: 30.0,
+            gpu_temp: 55.0,
+            gpu_usage: 25.0,
+            ram_used_gb: 9.0,
+        };
+        {
+            let mut s = hm.state.write();
+            s.samples_1h.push_back(sample3.clone());
+        }
+        let res3 = hm.get_telemetry_history("1h");
+        assert_eq!(res3.samples.len(), 2); // 1h has sample1 and sample3
+        assert_eq!(res3.samples[1].cpu_temp, 65.0);
+
+        // 24h buffer
+        {
+            let mut s = hm.state.write();
+            s.samples_24h.push_back(sample1.clone());
+        }
+        let res24 = hm.get_telemetry_history("24h");
+        assert_eq!(res24.samples.len(), 1);
+
+        // Clear history
+        hm.clear_telemetry_history();
+        let res_cleared = hm.get_telemetry_history("1h");
+        assert_eq!(res_cleared.samples.len(), 0);
     }
 }
