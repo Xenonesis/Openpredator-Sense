@@ -134,3 +134,92 @@ pub fn reboot_system() -> Result<(), String> {
         .map(|_| ())
         .map_err(|e| e.to_string())
 }
+
+pub fn set_sound_mode(mode: &str) -> Result<(), String> {
+    // Try writing to HKLM first, fallback to HKCU if access denied (e.g. non-admin)
+    let hklm_cmd = Command::new("reg.exe")
+        .args([
+            "add",
+            r"HKLM\SOFTWARE\OEM\PredatorSense",
+            "/v",
+            "SoundMode",
+            "/t",
+            "REG_SZ",
+            "/d",
+            mode,
+            "/f",
+        ])
+        .output();
+
+    if let Ok(out) = hklm_cmd {
+        if out.status.success() {
+            return Ok(());
+        }
+    }
+
+    let hkcu_cmd = Command::new("reg.exe")
+        .args([
+            "add",
+            r"HKCU\SOFTWARE\OEM\PredatorSense",
+            "/v",
+            "SoundMode",
+            "/t",
+            "REG_SZ",
+            "/d",
+            mode,
+            "/f",
+        ])
+        .output()
+        .map_err(|e| format!("Failed to execute reg.exe: {}", e))?;
+
+    if hkcu_cmd.status.success() {
+        Ok(())
+    } else {
+        let err = String::from_utf8_lossy(&hkcu_cmd.stderr);
+        Err(format!("Failed to set SoundMode registry key: {}", err.trim()))
+    }
+}
+
+pub fn get_sound_mode() -> String {
+    // Check HKLM first
+    if let Ok(out) = Command::new("reg.exe")
+        .args(["query", r"HKLM\SOFTWARE\OEM\PredatorSense", "/v", "SoundMode"])
+        .output()
+    {
+        if out.status.success() {
+            let stdout = String::from_utf8_lossy(&out.stdout);
+            for line in stdout.lines() {
+                if line.contains("SoundMode") && line.contains("REG_SZ") {
+                    if let Some(val) = line.split("REG_SZ").nth(1) {
+                        let trimmed = val.trim();
+                        if !trimmed.is_empty() {
+                            return trimmed.to_string();
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Check HKCU fallback
+    if let Ok(out) = Command::new("reg.exe")
+        .args(["query", r"HKCU\SOFTWARE\OEM\PredatorSense", "/v", "SoundMode"])
+        .output()
+    {
+        if out.status.success() {
+            let stdout = String::from_utf8_lossy(&out.stdout);
+            for line in stdout.lines() {
+                if line.contains("SoundMode") && line.contains("REG_SZ") {
+                    if let Some(val) = line.split("REG_SZ").nth(1) {
+                        let trimmed = val.trim();
+                        if !trimmed.is_empty() {
+                            return trimmed.to_string();
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    "AUTOMATIC".to_string()
+}

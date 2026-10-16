@@ -164,3 +164,23 @@ pub enum WmiCmd {
     SetTempUnit(bool),
     PollHardware,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MacroKeyAction {
+    pub key: String,
+    pub key_code: u16,
+    pub is_down: bool,
+    pub delay_ms: u32,
+    pub extra_payload: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MacroGroup {
+    pub id: String,
+    pub name: String,
+    pub kind: String,
+    pub trigger_hotkey: String,
+    pub color_hex: String,
+    pub actions: Vec<MacroKeyAction>,
+    pub enabled: bool,
+}

@@ -6,6 +6,7 @@ pub mod nvapi;
 pub mod game_sync;
 pub mod app_center;
 pub mod lighting_profiles;
+pub mod macro_engine;
 use std::sync::Arc;
 use tauri::State;
 use crate::models::{FanMode, PerformanceMode, SystemStats, TelemetryHistoryResponse, WmiCmd};
@@ -13,6 +14,7 @@ use crate::hardware_manager::HardwareManager;
 use crate::game_sync::{GameProfile, GameScanner};
 use crate::app_center::{AppCenter, AppItem};
 use crate::models::LightingProfile;
+use crate::models::MacroGroup;
 
 // ─── Tauri Commands ──────────────────────────────────────────────────────────
 // All commands read from cache (instant) or fire to worker (non-blocking).
@@ -217,6 +219,31 @@ fn window_is_maximized(window: tauri::Window) -> bool {
     window.is_maximized().unwrap_or(false)
 }
 
+#[tauri::command]
+fn get_macro_groups() -> Vec<MacroGroup> {
+    macro_engine::get_macro_groups()
+}
+
+#[tauri::command]
+fn save_macro_group(group: MacroGroup) -> Result<(), String> {
+    macro_engine::save_macro_group(group)
+}
+
+#[tauri::command]
+fn play_macro(group_id: String) -> Result<(), String> {
+    macro_engine::play_macro(group_id)
+}
+
+#[tauri::command]
+fn set_sound_mode(mode: String) -> Result<(), String> {
+    win32_util::set_sound_mode(&mode)
+}
+
+#[tauri::command]
+fn get_sound_mode() -> String {
+    win32_util::get_sound_mode()
+}
+
 // ─── App Entry ───────────────────────────────────────────────────────────────
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -261,6 +288,11 @@ pub fn run() {
             import_lighting_profile,
             get_telemetry_history,
             clear_telemetry_history,
+            get_macro_groups,
+            save_macro_group,
+            play_macro,
+            set_sound_mode,
+            get_sound_mode,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
