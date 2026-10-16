@@ -8,7 +8,7 @@ import {
   Volume2, VolumeX, ArrowDown, ArrowUp,
   RefreshCw, Play, X, ShieldAlert,
   Radio, Minus, Plus, Square, Copy, Thermometer,
-  Download, Upload,
+  Download, Upload, Trash2,
 } from "lucide-react";
 import "./App.css";
 
@@ -106,6 +106,30 @@ export interface LightingProfile {
   speed: number;
   direction: number;
   brightness: number;
+}
+export interface TelemetrySample {
+  timestamp: number;
+  cpu_temp: number;
+  cpu_usage: number;
+  gpu_temp: number;
+  gpu_usage: number;
+  ram_used_gb: number;
+}
+
+export interface MetricStats {
+  min: number;
+  max: number;
+  avg: number;
+  current: number;
+}
+
+export interface TelemetryHistoryResponse {
+  samples: TelemetrySample[];
+  cpu_temp: MetricStats;
+  cpu_usage: MetricStats;
+  gpu_temp: MetricStats;
+  gpu_usage: MetricStats;
+  ram: MetricStats;
 }
 
 function formatSpeed(bytesPerSec: number): string {
@@ -506,6 +530,140 @@ function ThermometerIcon({ className, style }: { className?: string; style?: Rea
     </svg>
   );
 }
+function TelemetryAreaChart({
+  samples,
+  metric,
+  themeColor,
+  unit,
+  isF = false,
+}: {
+  samples: TelemetrySample[];
+  metric: "cpu_temp" | "gpu_temp" | "cpu_usage" | "gpu_usage" | "ram";
+  themeColor: string;
+  unit: string;
+  isF?: boolean;
+}) {
+  const getVal = (s: TelemetrySample) => {
+    switch (metric) {
+      case "cpu_temp": return isF ? s.cpu_temp * 1.8 + 32 : s.cpu_temp;
+      case "gpu_temp": return isF ? s.gpu_temp * 1.8 + 32 : s.gpu_temp;
+      case "cpu_usage": return s.cpu_usage;
+      case "gpu_usage": return s.gpu_usage;
+      case "ram": return s.ram_used_gb;
+    }
+  };
+
+  const values = samples.map(getVal);
+  const minVal = values.length > 0 ? Math.floor(Math.min(...values)) : 0;
+  const maxVal = values.length > 0 ? Math.ceil(Math.max(...values, minVal + 10)) : 100;
+  const range = maxVal - minVal || 1;
+
+  const width = 800;
+  const height = 180;
+  const padding = { top: 20, right: 20, bottom: 25, left: 45 };
+  const graphWidth = width - padding.left - padding.right;
+  const graphHeight = height - padding.top - padding.bottom;
+
+  const points = values.map((v, i) => {
+    const x = padding.left + (i / Math.max(1, values.length - 1)) * graphWidth;
+    const y = padding.top + graphHeight - ((v - minVal) / range) * graphHeight;
+    return { x, y };
+  });
+
+  const pathD = points.length > 0
+    ? `M ${points.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" L ")}`
+    : "";
+
+  const areaD = points.length > 0
+    ? `${pathD} L ${points[points.length - 1].x.toFixed(1)},${(padding.top + graphHeight).toFixed(1)} L ${padding.left},${(padding.top + graphHeight).toFixed(1)} Z`
+    : "";
+
+  return (
+    <div className="w-full bg-[#06090f] p-4 rounded-xl border border-[#141d2d] relative overflow-hidden">
+      <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-44 overflow-visible">
+        <defs>
+          <linearGradient id={`areaGrad-${metric}`} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={themeColor} stopOpacity="0.4" />
+            <stop offset="100%" stopColor={themeColor} stopOpacity="0.0" />
+          </linearGradient>
+          <filter id={`bloom-${metric}`} x="-20%" y="-20%" width="140%" height="140%">
+            <feDropShadow dx="0" dy="0" stdDeviation="4" floodColor={themeColor} floodOpacity="0.6" />
+          </filter>
+        </defs>
+
+        {/* Graticule lines */}
+        {[0, 0.25, 0.5, 0.75, 1].map((pct, i) => {
+          const y = padding.top + graphHeight * (1 - pct);
+          const labelVal = Math.round(minVal + pct * range);
+          return (
+            <g key={i}>
+              <line
+                x1={padding.left}
+                y1={y}
+                x2={width - padding.right}
+                y2={y}
+                stroke="#152033"
+                strokeWidth="1"
+                strokeDasharray={pct === 0 || pct === 1 ? undefined : "3 3"}
+              />
+              <text
+                x={padding.left - 8}
+                y={y + 3.5}
+                textAnchor="end"
+                className="fill-slate-500 font-mono text-[10px]"
+              >
+                {labelVal}{unit}
+              </text>
+            </g>
+          );
+        })}
+
+        {/* Area fill */}
+        {areaD && <path d={areaD} fill={`url(#areaGrad-${metric})`} />}
+
+        {/* Stroke path */}
+        {pathD && (
+          <path
+            d={pathD}
+            fill="none"
+            stroke={themeColor}
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            filter={`url(#bloom-${metric})`}
+          />
+        )}
+
+        {/* Latest point indicator */}
+        {points.length > 0 && (
+          <g>
+            <circle
+              cx={points[points.length - 1].x}
+              cy={points[points.length - 1].y}
+              r="4.5"
+              fill={themeColor}
+              className="animate-pulse"
+            />
+            <circle
+              cx={points[points.length - 1].x}
+              cy={points[points.length - 1].y}
+              r="8"
+              fill="none"
+              stroke={themeColor}
+              strokeWidth="1.5"
+              opacity="0.5"
+            />
+          </g>
+        )}
+      </svg>
+      {samples.length === 0 && (
+        <div className="absolute inset-0 flex items-center justify-center font-mono text-xs text-slate-500">
+          AWAITING SENSOR TELEMETRY SAMPLES...
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ── Stat Bar ─────────────────────────────────────────────────────────────────
 function TacticalStatCard({
@@ -623,6 +781,11 @@ export default function App() {
   const [profiles, setProfiles] = useState<LightingProfile[]>([]);
   const [showSaveProfileModal, setShowSaveProfileModal] = useState(false);
   const [newProfileName, setNewProfileName] = useState("");
+  // Telemetry History state
+  const [historyTimeframe, setHistoryTimeframe] = useState<"1h" | "24h">("1h");
+  const [historyMetric, setHistoryMetric] = useState<"cpu_temp" | "gpu_temp" | "cpu_usage" | "gpu_usage" | "ram">("cpu_temp");
+  const [historyData, setHistoryData] = useState<TelemetryHistoryResponse | null>(null);
+  const [showClearHistoryModal, setShowClearHistoryModal] = useState(false);
   // Telemetry stream history
   const [netHistory, setNetHistory] = useState<{ down: number[]; up: number[] }>({ down: [], up: [] });
 
@@ -677,6 +840,32 @@ export default function App() {
     }
   };
 
+  const fetchHistory = async (tf: "1h" | "24h" = historyTimeframe) => {
+    try {
+      const res = await invoke<TelemetryHistoryResponse>("get_telemetry_history", {
+        timeframe: tf,
+      });
+      setHistoryData(res);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleClearHistory = async () => {
+    try {
+      await invoke("clear_telemetry_history");
+      setShowClearHistoryModal(false);
+      await fetchHistory();
+    } catch (e) {
+      alert(String(e));
+    }
+  };
+
+  useEffect(() => {
+    fetchHistory(historyTimeframe);
+    const hid = setInterval(() => fetchHistory(historyTimeframe), 3000);
+    return () => clearInterval(hid);
+  }, [historyTimeframe]);
   useEffect(() => {
     invoke<GameProfile[]>("scan_installed_games")
       .then(setGames)
@@ -2129,6 +2318,126 @@ export default function App() {
                   />
                 </div>
               </div>
+              {/* ── Historical Telemetry Analysis Deck ── */}
+              <div className="p-5 rounded-xl bg-gradient-to-b from-[#0c121d] to-[#080d16] border border-[#172338] space-y-4 shadow-xl">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-[#131c2c] pb-3">
+                  <div className="flex items-center gap-2">
+                    <Activity className="w-4 h-4 text-cyan-400" />
+                    <div>
+                      <h3 className="font-bold text-sm font-mono text-slate-100">
+                        HISTORICAL TELEMETRY ANALYSIS & PEAK RECORDER
+                      </h3>
+                      <p className="text-[11px] text-slate-400 font-mono">
+                        Rolling in-memory sensor buffers tracking statistical minimums, maximums, and trends.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2.5">
+                    {/* Timeframe Selector */}
+                    <div className="flex bg-[#070b12] p-0.5 rounded-lg border border-[#182337] text-xs font-mono">
+                      <button
+                        onClick={() => { setHistoryTimeframe("1h"); fetchHistory("1h"); }}
+                        className={`px-2.5 py-1 rounded font-bold transition-all cursor-pointer ${
+                          historyTimeframe === "1h" ? "bg-cyan-500 text-black shadow-sm" : "text-slate-400 hover:text-white"
+                        }`}
+                      >
+                        1 HOUR (60m)
+                      </button>
+                      <button
+                        onClick={() => { setHistoryTimeframe("24h"); fetchHistory("24h"); }}
+                        className={`px-2.5 py-1 rounded font-bold transition-all cursor-pointer ${
+                          historyTimeframe === "24h" ? "bg-cyan-500 text-black shadow-sm" : "text-slate-400 hover:text-white"
+                        }`}
+                      >
+                        24 HOURS
+                      </button>
+                    </div>
+
+                    <button
+                      onClick={() => setShowClearHistoryModal(true)}
+                      className="px-2.5 py-1 rounded-lg bg-red-950/40 hover:bg-red-900/60 text-red-400 border border-red-800/40 text-xs font-mono font-bold flex items-center gap-1 transition-all cursor-pointer"
+                      title="Clear telemetry logging history"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" /> CLEAR
+                    </button>
+                  </div>
+                </div>
+
+                {/* Metric Selector Tabs */}
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-xs font-mono font-bold">
+                  {([
+                    { id: "cpu_temp" as const, label: "CPU TEMP", color: "#00e5ff" },
+                    { id: "gpu_temp" as const, label: "GPU TEMP", color: "#b026ff" },
+                    { id: "cpu_usage" as const, label: "CPU USAGE", color: "#00f59b" },
+                    { id: "gpu_usage" as const, label: "GPU USAGE", color: "#ffaa00" },
+                    { id: "ram" as const, label: "RAM ALLOCATION", color: "#38bdf8" },
+                  ]).map((m) => (
+                    <button
+                      key={m.id}
+                      onClick={() => setHistoryMetric(m.id)}
+                      className={`py-2 px-3 rounded-lg border transition-all text-center cursor-pointer ${
+                        historyMetric === m.id
+                          ? "bg-[#0d1829] text-white border-cyan-400 shadow-[0_0_12px_rgba(0,229,255,0.25)]"
+                          : "bg-[#070b12] text-slate-400 border-[#141d2d] hover:text-slate-200"
+                      }`}
+                    >
+                      <span className="block text-[11px]">{m.label}</span>
+                    </button>
+                  ))}
+                </div>
+
+                {/* 4 Min/Max/Avg Readout Boxes */}
+                {historyData && (() => {
+                  const stat = historyData[historyMetric];
+                  const formatMetricValue = (val: number): string => {
+                    if (historyMetric === "cpu_temp" || historyMetric === "gpu_temp") {
+                      return formatTemp(val);
+                    }
+                    if (historyMetric === "ram") {
+                      return `${val.toFixed(1)} GB`;
+                    }
+                    return `${Math.round(val)}%`;
+                  };
+                  return (
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs font-mono">
+                      <div className="p-3 rounded-lg bg-[#06090f] border border-[#141d2d]">
+                        <span className="text-[10px] text-slate-500 block">CURRENT VALUE</span>
+                        <strong className="text-base text-cyan-300">{formatMetricValue(stat.current)}</strong>
+                      </div>
+                      <div className="p-3 rounded-lg bg-[#06090f] border border-[#141d2d]">
+                        <span className="text-[10px] text-slate-500 block">MINIMUM RECORDED</span>
+                        <strong className="text-base text-emerald-400">{formatMetricValue(stat.min)}</strong>
+                      </div>
+                      <div className="p-3 rounded-lg bg-[#06090f] border border-[#141d2d]">
+                        <span className="text-[10px] text-slate-500 block">PEAK MAXIMUM (SPIKE)</span>
+                        <strong className="text-base text-rose-400">{formatMetricValue(stat.max)}</strong>
+                      </div>
+                      <div className="p-3 rounded-lg bg-[#06090f] border border-[#141d2d]">
+                        <span className="text-[10px] text-slate-500 block">PERIOD AVERAGE</span>
+                        <strong className="text-base text-amber-300">{formatMetricValue(stat.avg)}</strong>
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* Native SVG Area Chart */}
+                <TelemetryAreaChart
+                  samples={historyData?.samples ?? []}
+                  metric={historyMetric}
+                  themeColor={
+                    historyMetric === "cpu_temp" ? "#00e5ff" :
+                    historyMetric === "gpu_temp" ? "#b026ff" :
+                    historyMetric === "cpu_usage" ? "#00f59b" :
+                    historyMetric === "gpu_usage" ? "#ffaa00" : "#38bdf8"
+                  }
+                  unit={
+                    historyMetric === "cpu_temp" || historyMetric === "gpu_temp" ? (isF ? "°F" : "°C") :
+                    historyMetric === "ram" ? "G" : "%"
+                  }
+                  isF={isF}
+                />
+              </div>
             </div>
           )}
 
@@ -2680,6 +2989,41 @@ export default function App() {
                 className="px-4 py-2 rounded-lg bg-cyan-500 hover:bg-cyan-400 disabled:opacity-40 text-black font-mono font-bold text-xs uppercase shadow-md shadow-cyan-500/20 cursor-pointer"
               >
                 SAVE PROFILE
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* ── Clear History Confirmation Modal ── */}
+      {showClearHistoryModal && (
+        <div className="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-6">
+          <div className="w-full max-w-sm bg-[#0a0f19] border border-red-500/50 rounded-2xl p-6 space-y-4 shadow-2xl">
+            <div className="flex justify-between items-center border-b border-[#152033] pb-3">
+              <h3 className="font-bold text-sm font-mono text-red-400 flex items-center gap-2">
+                <Trash2 className="w-4 h-4 text-red-400" /> CLEAR TELEMETRY BUFFERS
+              </h3>
+              <button
+                onClick={() => setShowClearHistoryModal(false)}
+                className="p-1 rounded text-slate-400 hover:text-white hover:bg-slate-800 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <p className="text-xs text-slate-300 font-mono leading-relaxed">
+              Are you sure you want to reset all telemetry history? Peak recordings and min/max/average metrics for 1H and 24H will be cleared immediately.
+            </p>
+            <div className="flex justify-end gap-2 pt-2 border-t border-[#152033]">
+              <button
+                onClick={() => setShowClearHistoryModal(false)}
+                className="px-4 py-2 rounded-lg bg-slate-800 text-slate-400 text-xs font-mono hover:text-white cursor-pointer"
+              >
+                CANCEL
+              </button>
+              <button
+                onClick={handleClearHistory}
+                className="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-500 text-white font-mono font-bold text-xs uppercase shadow-md shadow-red-600/30 cursor-pointer"
+              >
+                RESET BUFFERS
               </button>
             </div>
           </div>
