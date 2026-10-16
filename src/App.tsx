@@ -8,7 +8,7 @@ import {
   Volume2, VolumeX, ArrowDown, ArrowUp,
   RefreshCw, Play, X, ShieldAlert,
   Radio, Minus, Plus, Square, Copy, Thermometer,
-  Download, Upload, Trash2,
+  Download, Upload, Trash2, Keyboard,
 } from "lucide-react";
 import "./App.css";
 
@@ -130,6 +130,23 @@ export interface TelemetryHistoryResponse {
   gpu_temp: MetricStats;
   gpu_usage: MetricStats;
   ram: MetricStats;
+}
+export interface MacroKeyAction {
+  key: string;
+  key_code: number;
+  is_down: boolean;
+  delay_ms: number;
+  extra_payload?: string;
+}
+
+export interface MacroGroup {
+  id: string;
+  name: string;
+  kind: string;
+  trigger_hotkey: string;
+  color_hex: string;
+  actions: MacroKeyAction[];
+  enabled: boolean;
 }
 
 function formatSpeed(bytesPerSec: number): string {
@@ -717,7 +734,7 @@ function TacticalStatCard({
 export default function App() {
   const [stats, setStats] = useState<SystemStats | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"home" | "fans" | "lighting" | "monitoring" | "gamesync" | "appcenter">("home");
+  const [activeTab, setActiveTab] = useState<"home" | "fans" | "lighting" | "monitoring" | "gamesync" | "appcenter" | "macros">("home");
   const [showSettings, setShowSettings] = useState(false);
   const [showModesIntro, setShowModesIntro] = useState(false);
   const [showRebootModal, setShowRebootModal] = useState(false);
@@ -786,6 +803,17 @@ export default function App() {
   const [historyMetric, setHistoryMetric] = useState<"cpu_temp" | "gpu_temp" | "cpu_usage" | "gpu_usage" | "ram">("cpu_temp");
   const [historyData, setHistoryData] = useState<TelemetryHistoryResponse | null>(null);
   const [showClearHistoryModal, setShowClearHistoryModal] = useState(false);
+
+  // Macro Key Engine state
+  const [macroGroups, setMacroGroups] = useState<MacroGroup[]>([]);
+  const [selectedMacroGroup, setSelectedMacroGroup] = useState<MacroGroup | null>(null);
+  const [showMacroRecordModal, setShowMacroRecordModal] = useState(false);
+  const [isRecordingMacro, setIsRecordingMacro] = useState(false);
+  const [recordedActions, setRecordedActions] = useState<MacroKeyAction[]>([]);
+  const [lastActionTime, setLastActionTime] = useState<number>(0);
+
+  // Sound Mode state
+  const [soundMode, setSoundMode] = useState<string>("AUTOMATIC");
   // Telemetry stream history
   const [netHistory, setNetHistory] = useState<{ down: number[]; up: number[] }>({ down: [], up: [] });
 
@@ -870,10 +898,110 @@ export default function App() {
     invoke<GameProfile[]>("scan_installed_games")
       .then(setGames)
       .catch(console.error);
-
     fetchAllApps();
     fetchProfiles();
+    fetchMacroGroups();
+    fetchSoundMode();
   }, []);
+
+  const fetchMacroGroups = async () => {
+    try {
+      const groups = await invoke<MacroGroup[]>("get_macro_groups");
+      setMacroGroups(groups);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const fetchSoundMode = async () => {
+    try {
+      const mode = await invoke<string>("get_sound_mode");
+      if (mode) setSoundMode(mode);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handlePlayMacro = (groupId: string) => {
+    invoke("play_macro", { groupId }).catch((err) => alert(String(err)));
+  };
+
+  const handleToggleMacro = async (group: MacroGroup) => {
+    const updated = { ...group, enabled: !group.enabled };
+    try {
+      await invoke("save_macro_group", { group: updated });
+      await fetchMacroGroups();
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleSaveRecordedMacro = async () => {
+    if (!selectedMacroGroup) return;
+    const updated: MacroGroup = {
+      ...selectedMacroGroup,
+      actions: recordedActions,
+    };
+    try {
+      await invoke("save_macro_group", { group: updated });
+      setShowMacroRecordModal(false);
+      setIsRecordingMacro(false);
+      await fetchMacroGroups();
+    } catch (e) {
+      alert(String(e));
+    }
+  };
+
+  const handleSetSoundMode = async (mode: string) => {
+    setSoundMode(mode);
+    try {
+      await invoke("set_sound_mode", { mode });
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  useEffect(() => {
+    if (!isRecordingMacro) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      e.preventDefault();
+      const now = Date.now();
+      const delay = lastActionTime > 0 ? Math.min(2000, now - lastActionTime) : 50;
+      setLastActionTime(now);
+      setRecordedActions((prev) => [
+        ...prev,
+        {
+          key: e.key.toUpperCase(),
+          key_code: e.keyCode,
+          is_down: true,
+          delay_ms: delay,
+        },
+      ]);
+    };
+
+    const handleKeyUp = (e: KeyboardEvent) => {
+      e.preventDefault();
+      const now = Date.now();
+      const delay = lastActionTime > 0 ? Math.min(2000, now - lastActionTime) : 50;
+      setLastActionTime(now);
+      setRecordedActions((prev) => [
+        ...prev,
+        {
+          key: e.key.toUpperCase(),
+          key_code: e.keyCode,
+          is_down: false,
+          delay_ms: delay,
+        },
+      ]);
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("keyup", handleKeyUp);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("keyup", handleKeyUp);
+    };
+  }, [isRecordingMacro, lastActionTime]);
 
   // ── Hardware Trigger Actions ────────────────────────────────────────────────
   const setMode = (mode: PerformanceMode) => {
@@ -1195,6 +1323,7 @@ export default function App() {
     { id: "monitoring", label: "DIAGNOSTICS",  icon: Activity,   sub: "System Oscilloscope" },
     { id: "gamesync",   label: "GAME SYNC",    icon: Gamepad2,   sub: "Auto Flight Profiles" },
     { id: "appcenter",  label: "LAUNCHPAD",    icon: Grid,       sub: "OEM & Utility Hub" },
+    { id: "macros",     label: "KEY MACROS",   icon: Keyboard,   sub: "P1/P2/P3 Engine" },
   ] as const;
 
   const PRESETS = [
@@ -1623,6 +1752,38 @@ export default function App() {
                   color="#ffaa00"
                   extra={`UP: ${formatSpeed(stats.network.upload_bytes_per_sec)}`}
                 />
+              </div>
+
+              {/* Acer TrueHarmony™ & DTS Sound Modes Deck */}
+              <div className="p-5 rounded-xl bg-gradient-to-r from-[#0c121d] to-[#080d16] border border-[#172338] shadow-xl space-y-3">
+                <div className="flex justify-between items-center border-b border-[#131c2c] pb-2.5">
+                  <div className="flex items-center gap-2">
+                    <Volume2 className="w-4 h-4 text-cyan-400" />
+                    <div>
+                      <h4 className="font-bold text-xs font-mono text-slate-100 uppercase">ACER TRUEHARMONY™ & DTS AUDIO PROFILE</h4>
+                      <p className="text-[10px] text-slate-400 font-mono">Dynamic acoustic equalization tuned for gaming soundstages.</p>
+                    </div>
+                  </div>
+                  <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-cyan-950 text-cyan-300 border border-cyan-800/40">
+                    ACTIVE: {soundMode}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2">
+                  {["AUTOMATIC", "SHOOTER", "RPG", "STRATEGY", "MOVIE", "MUSIC", "VOICE"].map((sm) => (
+                    <button
+                      key={sm}
+                      onClick={() => handleSetSoundMode(sm)}
+                      className={`py-2 px-2.5 rounded-lg text-xs font-mono font-bold transition-all border text-center cursor-pointer ${
+                        soundMode === sm
+                          ? "bg-cyan-500 text-black border-cyan-400 shadow-[0_0_12px_rgba(0,229,255,0.4)]"
+                          : "bg-[#0b101b] text-slate-400 border-[#192439] hover:text-slate-200 hover:bg-[#111726]"
+                      }`}
+                    >
+                      {sm}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
           )}
@@ -2599,6 +2760,99 @@ export default function App() {
               </div>
             </div>
           )}
+
+          {/* ══════════════════════════════════════════════════════════════════
+              TAB: KEY MACROS (P1 / P2 / P3 ENGINE)
+             ══════════════════════════════════════════════════════════════════ */}
+          {activeTab === "macros" && (
+            <div className="space-y-6">
+              <div className="p-5 rounded-xl bg-gradient-to-b from-[#0c121d] to-[#080d16] border border-[#172338] shadow-xl flex items-center justify-between">
+                <div>
+                  <h3 className="font-bold text-sm font-mono text-slate-100 flex items-center gap-2">
+                    <Keyboard className="w-5 h-5 text-cyan-400" /> TACTICAL MACRO ENGINE (P1 / P2 / P3 GROUPS)
+                  </h3>
+                  <p className="text-xs text-slate-400 font-mono mt-1">
+                    Dedicated macro groups with millisecond keystroke delay fidelity, global hotkey triggers, and hardware action binding.
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {macroGroups.map((group) => (
+                  <div
+                    key={group.id}
+                    className="p-5 rounded-xl bg-[#0b1019] border transition-all flex flex-col justify-between h-72 shadow-lg"
+                    style={{ borderColor: `${group.color_hex}66` }}
+                  >
+                    <div>
+                      <div className="flex justify-between items-start mb-3">
+                        <span
+                          className="text-[10px] font-mono px-2 py-0.5 rounded font-bold border"
+                          style={{
+                            color: group.color_hex,
+                            backgroundColor: `${group.color_hex}15`,
+                            borderColor: `${group.color_hex}44`,
+                          }}
+                        >
+                          {group.id.toUpperCase().replace("_", " ")}
+                        </span>
+                        <button
+                          onClick={() => handleToggleMacro(group)}
+                          className={`w-10 h-5 rounded-full relative transition-all border cursor-pointer ${
+                            group.enabled ? "bg-cyan-500 border-cyan-400" : "bg-slate-800 border-slate-700"
+                          }`}
+                        >
+                          <span
+                            className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all ${
+                              group.enabled ? "left-5" : "left-0.5"
+                            }`}
+                          />
+                        </button>
+                      </div>
+
+                      <h4 className="font-bold text-slate-100 text-sm font-mono">{group.name}</h4>
+                      <div className="mt-2 text-xs font-mono text-slate-400 flex items-center gap-1.5">
+                        <span className="text-slate-500">HOTKEY:</span>
+                        <span className="px-1.5 py-0.5 rounded bg-[#131d2e] border border-[#1f2d45] text-cyan-300 font-bold">
+                          {group.trigger_hotkey}
+                        </span>
+                      </div>
+
+                      <div className="mt-4 p-3 rounded-lg bg-[#070b12] border border-[#141d2d] text-xs font-mono">
+                        <span className="text-[10px] text-slate-500 block mb-1">RECORDED ACTIONS</span>
+                        <p className="text-slate-300">
+                          {group.actions.length === 0
+                            ? "No keystrokes recorded yet"
+                            : `${group.actions.length} Actions (${group.actions.reduce((acc, a) => acc + a.delay_ms, 0)}ms total)`}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex gap-2 pt-3 border-t border-[#141d2d]">
+                      <button
+                        onClick={() => {
+                          setSelectedMacroGroup(group);
+                          setRecordedActions([...group.actions]);
+                          setShowMacroRecordModal(true);
+                        }}
+                        className="flex-1 py-2 px-3 rounded-lg bg-[#111929] hover:bg-cyan-950/80 text-cyan-300 border border-cyan-500/40 font-mono font-bold text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                      >
+                        RECORD / EDIT
+                      </button>
+                      <button
+                        onClick={() => handlePlayMacro(group.id)}
+                        disabled={group.actions.length === 0}
+                        className="py-2 px-3 rounded-lg bg-cyan-500 hover:bg-cyan-400 disabled:opacity-40 text-black font-mono font-bold text-xs transition-all flex items-center justify-center gap-1 shadow-md shadow-cyan-500/20 cursor-pointer"
+                        title="Test replay macro"
+                      >
+                        <Play className="w-3.5 h-3.5 fill-current" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </main>
 
@@ -3024,6 +3278,94 @@ export default function App() {
                 className="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-500 text-white font-mono font-bold text-xs uppercase shadow-md shadow-red-600/30 cursor-pointer"
               >
                 RESET BUFFERS
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* ── Macro Recorder Modal ── */}
+      {showMacroRecordModal && selectedMacroGroup && (
+        <div className="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-6">
+          <div className="w-full max-w-lg bg-[#0a0f19] border border-cyan-500/40 rounded-2xl p-6 space-y-4 shadow-2xl">
+            <div className="flex justify-between items-center border-b border-[#152033] pb-3">
+              <h3 className="font-bold text-sm font-mono text-slate-100 flex items-center gap-2">
+                <Keyboard className="w-4 h-4 text-cyan-400" /> MACRO RECORDER // {selectedMacroGroup.name}
+              </h3>
+              <button
+                onClick={() => { setShowMacroRecordModal(false); setIsRecordingMacro(false); }}
+                className="p-1 rounded text-slate-400 hover:text-white hover:bg-slate-800 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-3 font-mono text-xs">
+              <div className="p-3 rounded-lg bg-[#06090f] border border-[#141d2d] flex items-center justify-between">
+                <div>
+                  <span className="text-[10px] text-slate-500 block">RECORDER STATUS</span>
+                  <span className={`font-bold ${isRecordingMacro ? "text-red-400 animate-pulse" : "text-slate-400"}`}>
+                    {isRecordingMacro ? "● RECORDING LIVE KEYSTROKES..." : "IDLE (PRESS START TO RECORD)"}
+                  </span>
+                </div>
+                <div className="flex gap-2">
+                  {!isRecordingMacro ? (
+                    <button
+                      onClick={() => {
+                        setIsRecordingMacro(true);
+                        setRecordedActions([]);
+                        setLastActionTime(Date.now());
+                      }}
+                      className="px-3 py-1.5 rounded-lg bg-red-600 hover:bg-red-500 text-white font-bold text-xs transition-all shadow-md shadow-red-600/30 cursor-pointer"
+                    >
+                      START RECORDING
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => setIsRecordingMacro(false)}
+                      className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs border border-slate-600 cursor-pointer"
+                    >
+                      STOP RECORDING
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              <div className="p-3 rounded-lg bg-[#06090f] border border-[#141d2d] max-h-48 overflow-y-auto space-y-1.5">
+                <span className="text-[10px] text-slate-500 block mb-1">KEYSTROKE TIMELINE</span>
+                {recordedActions.length === 0 ? (
+                  <p className="text-slate-600 text-center py-4">No actions captured. Press keys while recording is active.</p>
+                ) : (
+                  <div className="flex flex-wrap gap-1.5">
+                    {recordedActions.map((act, idx) => (
+                      <span
+                        key={idx}
+                        className={`px-2 py-0.5 rounded text-[10px] border font-mono ${
+                          act.is_down
+                            ? "bg-cyan-950/60 text-cyan-300 border-cyan-800/50"
+                            : "bg-slate-900 text-slate-400 border-slate-800"
+                        }`}
+                      >
+                        {act.key} {act.is_down ? "↓" : "↑"} ({act.delay_ms}ms)
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2 border-t border-[#152033]">
+              <button
+                onClick={() => { setShowMacroRecordModal(false); setIsRecordingMacro(false); }}
+                className="px-4 py-2 rounded-lg bg-slate-800 text-slate-400 text-xs font-mono hover:text-white cursor-pointer"
+              >
+                CANCEL
+              </button>
+              <button
+                onClick={handleSaveRecordedMacro}
+                disabled={recordedActions.length === 0}
+                className="px-4 py-2 rounded-lg bg-cyan-500 hover:bg-cyan-400 disabled:opacity-40 text-black font-mono font-bold text-xs uppercase shadow-md shadow-cyan-500/20 cursor-pointer"
+              >
+                SAVE MACRO
               </button>
             </div>
           </div>
