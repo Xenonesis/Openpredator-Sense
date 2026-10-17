@@ -404,7 +404,10 @@ impl HardwareManager {
                 match fan_id {
                     1 => s.cpu_fan_mode = FanMode::Auto,
                     2 => s.gpu_fan_mode = FanMode::Auto,
-                    _ => {}
+                    _ => {
+                        s.cpu_fan_mode = FanMode::Auto;
+                        s.gpu_fan_mode = FanMode::Auto;
+                    }
                 }
             }
 
@@ -414,7 +417,12 @@ impl HardwareManager {
                 match fan_id {
                     1 => { s.cpu_fan_mode = FanMode::Custom; s.cpu_fan_pct = pct; }
                     2 => { s.gpu_fan_mode = FanMode::Custom; s.gpu_fan_pct = pct; }
-                    _ => {}
+                    _ => {
+                        s.cpu_fan_mode = FanMode::Custom;
+                        s.cpu_fan_pct = pct;
+                        s.gpu_fan_mode = FanMode::Custom;
+                        s.gpu_fan_pct = pct;
+                    }
                 }
             }
 

@@ -824,9 +824,14 @@ export default function App() {
     pendingRef.current = true;
     try {
       const data = await invoke<SystemStats>("get_system_stats");
-      setStats(data);
+      setStats((prev) => {
+        if (!prev) {
+          if (data.fans?.cpu?.target_percentage) setCpuSpeed(data.fans.cpu.target_percentage);
+          if (data.fans?.gpu?.target_percentage) setGpuSpeed(data.fans.gpu.target_percentage);
+        }
+        return data;
+      });
       setError(null);
-
       if (data.lighting?.zones?.length === 4) {
         setZones(data.lighting.zones);
       }

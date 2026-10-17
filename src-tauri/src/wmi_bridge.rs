@@ -99,8 +99,14 @@ impl AcerWmi {
     /// Input 0x0201 = CPU Fan RPM, 0x0601 = GPU Fan RPM
     /// Input 0x0101 = CPU Temp, 0x0301 = GPU Temp
     pub fn get_hardware_health(&self) -> (u32, u32, f32, f32) {
-        let cpu_rpm = self.get_sysinfo_value(0x0201);
-        let gpu_rpm = self.get_sysinfo_value(0x0601);
+        let mut cpu_rpm = self.get_sysinfo_value(0x0201);
+        if cpu_rpm == 0 {
+            cpu_rpm = self.get_fan_rpm(1);
+        }
+        let mut gpu_rpm = self.get_sysinfo_value(0x0601);
+        if gpu_rpm == 0 {
+            gpu_rpm = self.get_fan_rpm(2);
+        }
         let cpu_temp = self.get_sysinfo_value(0x0101) as f32;
         let gpu_temp = self.get_sysinfo_value(0x0301) as f32;
         (cpu_rpm, gpu_rpm, cpu_temp, gpu_temp)
@@ -149,58 +155,152 @@ impl AcerWmi {
     }
 
     /// Set Fan Auto Mode:
-    /// Sets both CPU and GPU fans to automatic curve: 0x00410009
-    pub fn set_fan_auto(&self, _fan_index: u32) {
-        let _: Result<GmOutput32, _> = self.con.exec_instance_method::<AcerGamingFunction, _>(
-            &self.path,
-            "SetGamingFanBehavior",
-            GmInput64 { gmInput: 0x00410009 },
-        );
+    /// CPU: 0x00030001
+    /// GPU: 0x000C0002
+    /// Both: 0x000F0003 and 0x00410009
+    pub fn set_fan_auto(&self, fan_index: u32) {
+        match fan_index {
+            1 => {
+                let _: Result<GmOutput32, _> = self.con.exec_instance_method::<AcerGamingFunction, _>(
+                    &self.path,
+                    "SetGamingFanBehavior",
+                    GmInput64 { gmInput: 0x00030001 },
+                );
+            }
+            2 => {
+                let _: Result<GmOutput32, _> = self.con.exec_instance_method::<AcerGamingFunction, _>(
+                    &self.path,
+                    "SetGamingFanBehavior",
+                    GmInput64 { gmInput: 0x000C0002 },
+                );
+            }
+            _ => {
+                let _: Result<GmOutput32, _> = self.con.exec_instance_method::<AcerGamingFunction, _>(
+                    &self.path,
+                    "SetGamingFanBehavior",
+                    GmInput64 { gmInput: 0x00030001 },
+                );
+                let _: Result<GmOutput32, _> = self.con.exec_instance_method::<AcerGamingFunction, _>(
+                    &self.path,
+                    "SetGamingFanBehavior",
+                    GmInput64 { gmInput: 0x000C0002 },
+                );
+                let _: Result<GmOutput32, _> = self.con.exec_instance_method::<AcerGamingFunction, _>(
+                    &self.path,
+                    "SetGamingFanBehavior",
+                    GmInput64 { gmInput: 0x00410009 },
+                );
+            }
+        }
     }
 
     /// Set Manual Fan Speed:
-    /// Custom Behavior: 0x00C30009
-    /// CPU: SetGamingFanSpeed(1 | (pct << 16))
-    /// GPU: SetGamingFanSpeed(4 | (pct << 16))
+    /// CPU: Behavior 0x00010001, Speed: fan_id 1 | (pct << 8) | (pct << 16)
+    /// GPU: Behavior 0x00040002, Speed: fan_id 2 | (pct << 8) | (pct << 16)
     pub fn set_fan_custom(&self, fan_index: u32, pct: u8) {
+        let duty = pct.clamp(30, 100) as u64;
+        // Dual-shift encoding: packs duty cycle into byte 1 (<< 8, official app)
+        // and byte 2 (<< 16, ACPI variant) so any BIOS firmware revision recognizes the speed!
+        let speed_payload = (duty << 8) | (duty << 16);
+
+        match fan_index {
+            1 => {
+                // 1. Unlock CPU fan to manual curve
+                let _: Result<GmOutput32, _> = self.con.exec_instance_method::<AcerGamingFunction, _>(
+                    &self.path,
+                    "SetGamingFanBehavior",
+                    GmInput64 { gmInput: 0x00010001 },
+                );
+                // 2. Set CPU fan speed (Fan ID 1)
+                let _: Result<GmOutput32, _> = self.con.exec_instance_method::<AcerGamingFunction, _>(
+                    &self.path,
+                    "SetGamingFanSpeed",
+                    GmInput64 { gmInput: 1 | speed_payload },
+                );
+            }
+            2 => {
+                // 1. Unlock GPU fan to manual curve
+                let _: Result<GmOutput32, _> = self.con.exec_instance_method::<AcerGamingFunction, _>(
+                    &self.path,
+                    "SetGamingFanBehavior",
+                    GmInput64 { gmInput: 0x00040002 },
+                );
+                // 2. Set GPU fan speed (Fan ID 2, plus fallback ID 4 for 3-fan chassis)
+                let _: Result<GmOutput32, _> = self.con.exec_instance_method::<AcerGamingFunction, _>(
+                    &self.path,
+                    "SetGamingFanSpeed",
+                    GmInput64 { gmInput: 2 | speed_payload },
+                );
+                let _: Result<GmOutput32, _> = self.con.exec_instance_method::<AcerGamingFunction, _>(
+                    &self.path,
+                    "SetGamingFanSpeed",
+                    GmInput64 { gmInput: 4 | speed_payload },
+                );
+            }
+            _ => {
+                // Both fans to manual
+                let _: Result<GmOutput32, _> = self.con.exec_instance_method::<AcerGamingFunction, _>(
+                    &self.path,
+                    "SetGamingFanBehavior",
+                    GmInput64 { gmInput: 0x00010001 },
+                );
+                let _: Result<GmOutput32, _> = self.con.exec_instance_method::<AcerGamingFunction, _>(
+                    &self.path,
+                    "SetGamingFanBehavior",
+                    GmInput64 { gmInput: 0x00040002 },
+                );
+                let _: Result<GmOutput32, _> = self.con.exec_instance_method::<AcerGamingFunction, _>(
+                    &self.path,
+                    "SetGamingFanSpeed",
+                    GmInput64 { gmInput: 1 | speed_payload },
+                );
+                let _: Result<GmOutput32, _> = self.con.exec_instance_method::<AcerGamingFunction, _>(
+                    &self.path,
+                    "SetGamingFanSpeed",
+                    GmInput64 { gmInput: 2 | speed_payload },
+                );
+                let _: Result<GmOutput32, _> = self.con.exec_instance_method::<AcerGamingFunction, _>(
+                    &self.path,
+                    "SetGamingFanSpeed",
+                    GmInput64 { gmInput: 4 | speed_payload },
+                );
+            }
+        }
+    }
+
+    /// Set Dual Fans to Maximum Roar: 100% duty cycle on all fans
+    pub fn set_fan_max(&self) {
         let _: Result<GmOutput32, _> = self.con.exec_instance_method::<AcerGamingFunction, _>(
             &self.path,
             "SetGamingFanBehavior",
-            GmInput64 { gmInput: 0x00C30009 },
+            GmInput64 { gmInput: 0x00010001 },
         );
-
-        let fan_id: u64 = match fan_index {
-            1 => 1,
-            2 => 4, // GPU fan index is 4 on PH315-55!
-            _ => 1,
-        };
-
-        let payload: u64 = fan_id | ((pct.min(100) as u64) << 16);
         let _: Result<GmOutput32, _> = self.con.exec_instance_method::<AcerGamingFunction, _>(
             &self.path,
-            "SetGamingFanSpeed",
-            GmInput64 { gmInput: payload },
+            "SetGamingFanBehavior",
+            GmInput64 { gmInput: 0x00040002 },
         );
-    }
-
-    /// Set Dual Fans to Maximum Roar: 0x00820009
-    pub fn set_fan_max(&self) {
         let _: Result<GmOutput32, _> = self.con.exec_instance_method::<AcerGamingFunction, _>(
             &self.path,
             "SetGamingFanBehavior",
             GmInput64 { gmInput: 0x00820009 },
         );
 
-        // Also enforce 100% speed payloads on CPU (1) and GPU (4)
+        let max_speed: u64 = (100u64 << 8) | (100u64 << 16);
         let _: Result<GmOutput32, _> = self.con.exec_instance_method::<AcerGamingFunction, _>(
             &self.path,
             "SetGamingFanSpeed",
-            GmInput64 { gmInput: 1 | (100u64 << 16) },
+            GmInput64 { gmInput: 1 | max_speed },
         );
         let _: Result<GmOutput32, _> = self.con.exec_instance_method::<AcerGamingFunction, _>(
             &self.path,
             "SetGamingFanSpeed",
-            GmInput64 { gmInput: 4 | (100u64 << 16) },
+            GmInput64 { gmInput: 2 | max_speed },
+        );
+        let _: Result<GmOutput32, _> = self.con.exec_instance_method::<AcerGamingFunction, _>(
+            &self.path,
+            "SetGamingFanSpeed",
+            GmInput64 { gmInput: 4 | max_speed },
         );
     }
 
