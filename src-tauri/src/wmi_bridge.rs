@@ -27,7 +27,11 @@ struct UiInput64 {
     uiInput: u64,
 }
 
-
+#[allow(non_snake_case)]
+#[derive(Deserialize)]
+struct UiOutput64 {
+    uiOutput: Option<u64>,
+}
 #[allow(non_snake_case)]
 #[derive(Deserialize)]
 struct UiOutput32 {
@@ -50,7 +54,6 @@ struct GmInput64 {
 struct GmInputBytes16 {
     gmInput: [u8; 16],
 }
-
 #[allow(non_snake_case)]
 #[derive(Deserialize)]
 struct GmOutput64 {
@@ -62,7 +65,6 @@ struct GmOutput64 {
 struct GmOutput32 {
     gmOutput: Option<u32>,
 }
-
 pub struct AcerWmi {
     con: WMIConnection,
     path: String,
@@ -338,15 +340,8 @@ impl AcerWmi {
         }
     }
 
-    /// Set RGB Keyboard Color via SetGamingRgbKb
+    /// Set RGB Keyboard Color via SetGamingRgbKb (Official Acer ACPI method)
     pub fn set_rgb_zone(&self, zone: u8, r: u8, g: u8, b: u8) {
-        // Ensure static keyboard layer is enabled: 0x0F << 40
-        let _: Result<GmOutput32, _> = self.con.exec_instance_method::<AcerGamingFunction, _>(
-            &self.path,
-            "SetGamingLEDBehavior",
-            GmInput64 { gmInput: 0x00000F0000000000 },
-        );
-
         let zone_mask: u64 = match zone {
             1 => 0x01,
             2 => 0x02,
@@ -480,25 +475,25 @@ impl AcerWmi {
     }
 
 
-    /// Set CoolBoost state on AcerGenericMethod
+    /// Set CoolBoost state on AcerGenericMethod: SetFunction(7 | ((enabled ? 1 : 0) << 16))
     pub fn set_coolboost(&self, enabled: bool) {
         if let Some(ref gp) = self.generic_path {
-            let payload: u32 = 7 | if enabled { 1 << 16 } else { 0 };
+            let payload: u64 = 7 | if enabled { 1u64 << 16 } else { 0 };
             let _: Result<UiOutput32, _> = self.con.exec_instance_method::<AcerGenericMethod, _>(
                 gp,
                 "SetFunction",
-                UiInput32 { uiInput: payload },
+                UiInput64 { uiInput: payload },
             );
         }
     }
 
-    /// Read CoolBoost state from AcerGenericMethod
+    /// Read CoolBoost state from AcerGenericMethod: GetFunction(0x0207)
     pub fn get_coolboost(&self) -> bool {
         if let Some(ref gp) = self.generic_path {
-            let res: Result<UiOutput32, _> = self.con.exec_instance_method::<AcerGenericMethod, _>(
+            let res: Result<UiOutput64, _> = self.con.exec_instance_method::<AcerGenericMethod, _>(
                 gp,
                 "GetFunction",
-                UiInput32 { uiInput: 0x00000207 },
+                UiInput32 { uiInput: 0x0207 },
             );
             if let Ok(out) = res {
                 let raw = out.uiOutput.unwrap_or(0);
@@ -508,11 +503,21 @@ impl AcerWmi {
         false
     }
 
-    /// Set Keyboard Backlight Brightness (0..100) via 16-byte array
+    /// Set Keyboard Backlight Brightness (0..100) via SetGamingKBBacklight
     pub fn set_keyboard_brightness(&self, pct: u8) {
+        let clamped = pct.min(100);
+        // Method 1: UInt64 bitshift payload ((pct as u64) << 16)
+        let _: Result<GmOutput32, _> = self.con.exec_instance_method::<AcerGamingFunction, _>(
+            &self.path,
+            "SetGamingKBBacklight",
+            GmInput64 { gmInput: (clamped as u64) << 16 },
+        );
+
+        // Method 2: SafeArray 16-byte buffer matching official Change_Keyboard_Brightness
         let mut arr = [0u8; 16];
-        arr[2] = pct.min(100);
-        arr[8] = 0x0F;
+        arr[1] = 0;
+        arr[2] = clamped;
+        arr[9] = 1;
         let _: Result<GmOutput32, _> = self.con.exec_instance_method::<AcerGamingFunction, _>(
             &self.path,
             "SetGamingKBBacklight",
@@ -520,7 +525,7 @@ impl AcerWmi {
         );
     }
 
-    /// Set Dynamic RGB Lighting Effect
+    /// Set Dynamic RGB Lighting Effect (Breathing, Neon, Wave, Zoom, Shift, Rainbow)
     pub fn set_lighting_effect(
         &self,
         effect: u8,
@@ -531,16 +536,21 @@ impl AcerWmi {
         g: u8,
         b: u8,
     ) {
+        let clamped_b = brightness.min(100);
+        let eff_id = effect.min(6);
+        let spd = speed.clamp(1, 9);
+
+        // 1. Array payload for SetGamingKBBacklight (Official Acer PredatorSense format)
         let mut arr = [0u8; 16];
-        arr[0] = 0;
-        arr[1] = speed;
-        arr[2] = brightness.min(100);
-        arr[3] = direction;
+        arr[0] = eff_id + 1;
+        arr[1] = spd;
+        arr[2] = clamped_b;
+        arr[3] = if eff_id == 2 { 8 } else { direction };
         arr[5] = r;
         arr[6] = g;
         arr[7] = b;
-        arr[8] = 0x0F;
-        arr[9] = effect;
+        arr[8] = direction;
+        arr[9] = if eff_id == 0 { 1 } else { 3 };
 
         let _: Result<GmOutput32, _> = self.con.exec_instance_method::<AcerGamingFunction, _>(
             &self.path,
@@ -548,13 +558,15 @@ impl AcerWmi {
             GmInputBytes16 { gmInput: arr },
         );
 
-        let payload: u64 = (effect as u64)
-            | ((speed as u64) << 8)
-            | (((brightness.min(100)) as u64) << 16)
+        // 2. 64-bit Bitmask payload for SetGamingLEDBehavior
+        let payload: u64 = (eff_id as u64)
+            | ((spd as u64) << 8)
+            | ((clamped_b as u64) << 16)
             | ((direction as u64) << 32)
             | ((r as u64) << 40)
             | ((g as u64) << 48)
             | ((b as u64) << 56);
+
         let _: Result<GmOutput32, _> = self.con.exec_instance_method::<AcerGamingFunction, _>(
             &self.path,
             "SetGamingLEDBehavior",
