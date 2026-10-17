@@ -23,7 +23,11 @@ const WM_SYSKEYDOWN: usize = 0x0104;
 const WM_SYSKEYUP: usize = 0x0105;
 const VK_LWIN: u32 = 0x5B;
 const VK_RWIN: u32 = 0x5C;
-
+const VK_CONTROL: i32 = 0x11;
+const VK_MENU: i32 = 0x12;
+const VK_1: u32 = 0x31;
+const VK_2: u32 = 0x32;
+const VK_3: u32 = 0x33;
 #[repr(C)]
 struct STICKYKEYS {
     cbSize: u32,
@@ -50,15 +54,39 @@ unsafe extern "system" {
     fn UnhookWindowsHookEx(hhk: HHOOK) -> i32;
     fn CallNextHookEx(hhk: HHOOK, nCode: i32, wParam: usize, lParam: isize) -> isize;
     fn GetMessageW(lpMsg: *mut c_void, hWnd: *mut c_void, wMsgFilterMin: u32, wMsgFilterMax: u32) -> i32;
+    fn GetAsyncKeyState(vKey: i32) -> i16;
 }
-
 unsafe extern "system" fn keyboard_hook_proc(code: i32, wParam: usize, lParam: isize) -> isize {
-    if code >= 0 && WIN_KEY_LOCKED.load(Ordering::Relaxed) {
-        if wParam == WM_KEYDOWN || wParam == WM_KEYUP || wParam == WM_SYSKEYDOWN || wParam == WM_SYSKEYUP {
+    if code >= 0 {
+        let is_down = wParam == WM_KEYDOWN || wParam == WM_SYSKEYDOWN;
+        let is_up = wParam == WM_KEYUP || wParam == WM_SYSKEYUP;
+
+        if is_down || is_up {
             let kbd = unsafe { *(lParam as *const KBDLLHOOKSTRUCT) };
-            if kbd.vkCode == VK_LWIN || kbd.vkCode == VK_RWIN {
-                // Drop the Windows key
+
+            // Windows Key Lock
+            if WIN_KEY_LOCKED.load(Ordering::Relaxed) && (kbd.vkCode == VK_LWIN || kbd.vkCode == VK_RWIN) {
                 return 1;
+            }
+
+            // Global Hotkey Macro Triggers (Ctrl + Alt + 1 / 2 / 3)
+            if is_down {
+                let ctrl = (unsafe { GetAsyncKeyState(VK_CONTROL) } as u16 & 0x8000) != 0;
+                let alt = (unsafe { GetAsyncKeyState(VK_MENU) } as u16 & 0x8000) != 0;
+                if ctrl && alt {
+                    match kbd.vkCode {
+                        VK_1 => {
+                            let _ = crate::macro_engine::play_macro("group_1".into());
+                        }
+                        VK_2 => {
+                            let _ = crate::macro_engine::play_macro("group_2".into());
+                        }
+                        VK_3 => {
+                            let _ = crate::macro_engine::play_macro("group_3".into());
+                        }
+                        _ => {}
+                    }
+                }
             }
         }
     }

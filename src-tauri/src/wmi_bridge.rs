@@ -327,9 +327,10 @@ impl AcerWmi {
             Err(_) => false,
         }
     }
-    /// Set Discrete GPU (MUX switch): 0 = Optimus / Dynamic, 1 = Discrete GPU only
+    /// Set Discrete GPU (MUX switch): 1 = Optimus, 2 = Discrete GPU only
     pub fn set_discrete_gpu(&self, enable: bool) {
-        let payload: u64 = 2 | ((if enable { 1u64 } else { 0u64 }) << 8);
+        let mode: u64 = if enable { 2 } else { 1 };
+        let payload: u64 = 2 | (mode << 8);
         let _: Result<GmOutput32, _> = self.con.exec_instance_method::<AcerGamingFunction, _>(
             &self.path,
             "SetGamingMiscSetting",
@@ -338,6 +339,7 @@ impl AcerWmi {
     }
 
     /// Read Discrete GPU mode from ACPI: GetGamingMiscSetting(2)
+    /// Returns true if locked to Discrete GPU (mode == 2)
     pub fn get_discrete_gpu(&self) -> bool {
         let res: Result<GmOutput64, WMIError> = self.con.exec_instance_method::<AcerGamingFunction, _>(
             &self.path,
@@ -347,7 +349,7 @@ impl AcerWmi {
         match res {
             Ok(out) => {
                 let raw = out.gmOutput.unwrap_or(0);
-                ((raw >> 8) & 0xFF) == 1
+                ((raw >> 8) & 0xFF) == 2
             }
             Err(_) => false,
         }

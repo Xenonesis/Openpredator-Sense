@@ -3,7 +3,7 @@
 //! Tauri commands read/write shared cached state instantly without blocking.
 
 use std::collections::VecDeque;
-use std::sync::{Arc, mpsc};
+use std::sync::{Arc, OnceLock, mpsc};
 use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use parking_lot::RwLock;
@@ -17,6 +17,13 @@ use crate::wmi_bridge::AcerWmi;
 use crate::win32_util;
 use crate::nvapi::NvApi;
 
+static HW_CMD_TX: OnceLock<mpsc::Sender<WmiCmd>> = OnceLock::new();
+
+pub fn trigger_turbo_mode() {
+    if let Some(tx) = HW_CMD_TX.get() {
+        let _ = tx.send(WmiCmd::SetPerformanceMode(PerformanceMode::Turbo));
+    }
+}
 // ─── Shared Cached State ────────────────────────────────────────────────────
 
 #[derive(Clone)]
@@ -132,7 +139,7 @@ impl HardwareManager {
     pub fn new() -> Self {
         let state = Arc::new(RwLock::new(CachedState::default()));
         let (tx, rx) = mpsc::channel::<WmiCmd>();
-
+        let _ = HW_CMD_TX.set(tx.clone());
         // Initialize Sticky Keys state from OS
         state.write().sticky_keys_enabled = win32_util::get_sticky_keys();
 
@@ -153,7 +160,8 @@ impl HardwareManager {
                 let nvapi_opt = NvApi::init();
 
                 let mut last_tick = Instant::now();
-
+                let mut process_check_ticks: u32 = 0;
+                let mut last_game_active = false;
                 loop {
                     thread::sleep(Duration::from_millis(1500));
                     let elapsed = last_tick.elapsed().as_secs_f64().max(0.5);
@@ -259,6 +267,49 @@ impl HardwareManager {
                             s.samples_24h.pop_front();
                         }
                         s.last_sample_24h = Instant::now();
+                    }
+
+                    // Game Sync Process Watcher (Every 3 seconds)
+                    process_check_ticks += 1;
+                    if process_check_ticks >= 2 {
+                        process_check_ticks = 0;
+                        sys.refresh_processes(sysinfo::ProcessesToUpdate::All, true);
+                        let games = crate::game_sync::GameScanner::scan_all();
+                        let mut game_found = None;
+                        for (_pid, proc) in sys.processes() {
+                            let p_name = proc.name().to_string_lossy().to_ascii_lowercase();
+                            if let Some(g) = games.iter().find(|g| g.enabled && (g.exe_name.to_ascii_lowercase() == p_name || g.exe_name.to_ascii_lowercase().ends_with(&p_name))) {
+                                game_found = Some(g.clone());
+                                break;
+                            }
+                        }
+
+                        if let Some(g) = &game_found {
+                            if !last_game_active {
+                                last_game_active = true;
+                                if let Some(tx_cmd) = HW_CMD_TX.get() {
+                                    let _ = tx_cmd.send(WmiCmd::SetPerformanceMode(g.performance_mode));
+                                    match g.fan_mode {
+                                        FanMode::Max => {
+                                            let _ = tx_cmd.send(WmiCmd::SetFanMax);
+                                        }
+                                        FanMode::Custom => {
+                                            let pct = g.custom_fan_pct.unwrap_or(100);
+                                            let _ = tx_cmd.send(WmiCmd::SetFanCustom(0, pct));
+                                        }
+                                        FanMode::Auto => {
+                                            let _ = tx_cmd.send(WmiCmd::SetFanAuto(0));
+                                        }
+                                    }
+                                }
+                            }
+                        } else if last_game_active {
+                            last_game_active = false;
+                            if let Some(tx_cmd) = HW_CMD_TX.get() {
+                                let _ = tx_cmd.send(WmiCmd::SetPerformanceMode(PerformanceMode::Normal));
+                                let _ = tx_cmd.send(WmiCmd::SetFanAuto(0));
+                            }
+                        }
                     }
                 }
             });

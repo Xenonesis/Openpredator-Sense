@@ -85,21 +85,37 @@ pub fn play_macro(group_id: String) -> Result<(), String> {
         .find(|g| g.id == group_id)
         .ok_or_else(|| format!("Macro group not found: {}", group_id))?;
 
-    if group.kind == "keystroke" {
-        let actions = group.actions;
-        thread::spawn(move || {
-            for action in actions {
-                if action.delay_ms > 0 {
-                    thread::sleep(Duration::from_millis(action.delay_ms as u64));
-                }
-                let vk = (action.key_code & 0xFF) as u8;
-                let flags = if action.is_down { 0 } else { KEYEVENTF_KEYUP };
-                unsafe {
-                    keybd_event(vk, 0, flags, 0);
-                }
-            }
-        });
+    if !group.enabled {
+        return Ok(());
     }
 
+    match group.kind.as_str() {
+        "keystroke" => {
+            let actions = group.actions;
+            thread::spawn(move || {
+                for action in actions {
+                    if action.delay_ms > 0 {
+                        thread::sleep(Duration::from_millis(action.delay_ms as u64));
+                    }
+                    let vk = (action.key_code & 0xFF) as u8;
+                    let flags = if action.is_down { 0 } else { KEYEVENTF_KEYUP };
+                    unsafe {
+                        keybd_event(vk, 0, flags, 0);
+                    }
+                }
+            });
+        }
+        "turbo" => {
+            crate::hardware_manager::trigger_turbo_mode();
+        }
+        "app" => {
+            if let Some(first_act) = group.actions.first() {
+                if let Some(path) = &first_act.extra_payload {
+                    let _ = std::process::Command::new(path).spawn();
+                }
+            }
+        }
+        _ => {}
+    }
     Ok(())
 }
