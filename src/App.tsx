@@ -8,7 +8,7 @@ import {
   Volume2, VolumeX, ArrowDown, ArrowUp,
   RefreshCw, Play, X, ShieldAlert,
   Radio, Minus, Plus, Square, Copy, Thermometer,
-  Download, Upload, Trash2, Keyboard,
+  Download, Upload, Trash2, Keyboard, Eye,
 } from "lucide-react";
 import "./App.css";
 
@@ -729,6 +729,127 @@ function TacticalStatCard({
     </div>
   );
 }
+const CHICLET_ROWS: {
+  id: string;
+  label: string;
+  sub?: string;
+  zone: 0 | 1 | 2 | 3;
+  w?: number;
+  isSpecial?: boolean;
+}[][] = [
+  [
+    { id: "esc", label: "ESC", zone: 0, w: 1.1 },
+    { id: "f1", label: "F1", zone: 0 },
+    { id: "f2", label: "F2", zone: 0 },
+    { id: "f3", label: "F3", zone: 0 },
+    { id: "f4", label: "F4", zone: 0 },
+    { id: "f5", label: "F5", zone: 1 },
+    { id: "f6", label: "F6", zone: 1 },
+    { id: "f7", label: "F7", zone: 1 },
+    { id: "f8", label: "F8", zone: 1 },
+    { id: "f9", label: "F9", zone: 2 },
+    { id: "f10", label: "F10", zone: 2 },
+    { id: "f11", label: "F11", zone: 2 },
+    { id: "f12", label: "F12", zone: 2 },
+    { id: "prtsc", label: "PRT", zone: 3 },
+    { id: "pause", label: "PAU", zone: 3 },
+    { id: "del", label: "DEL", zone: 3 },
+    { id: "ins", label: "INS", zone: 3 },
+    { id: "ps", label: "PS", zone: 3, w: 1.1, isSpecial: true },
+  ],
+  [
+    { id: "tilde", label: "~", zone: 0 },
+    { id: "1", label: "1", zone: 0 },
+    { id: "2", label: "2", zone: 0 },
+    { id: "3", label: "3", zone: 0 },
+    { id: "4", label: "4", zone: 0 },
+    { id: "5", label: "5", zone: 1 },
+    { id: "6", label: "6", zone: 1 },
+    { id: "7", label: "7", zone: 1 },
+    { id: "8", label: "8", zone: 1 },
+    { id: "9", label: "9", zone: 2 },
+    { id: "0", label: "0", zone: 2 },
+    { id: "minus", label: "-", zone: 2 },
+    { id: "equal", label: "=", zone: 2 },
+    { id: "bksp", label: "BACKSPACE", zone: 2, w: 1.9 },
+    { id: "numl", label: "NUM", zone: 3 },
+    { id: "slash", label: "/", zone: 3 },
+    { id: "star", label: "*", zone: 3 },
+    { id: "num_minus", label: "-", zone: 3 },
+  ],
+  [
+    { id: "tab", label: "TAB", zone: 0, w: 1.5 },
+    { id: "q", label: "Q", zone: 0 },
+    { id: "w", label: "W", zone: 0, isSpecial: true },
+    { id: "e", label: "E", zone: 0 },
+    { id: "r", label: "R", zone: 1 },
+    { id: "t", label: "T", zone: 1 },
+    { id: "y", label: "Y", zone: 1 },
+    { id: "u", label: "U", zone: 1 },
+    { id: "i", label: "I", zone: 2 },
+    { id: "o", label: "O", zone: 2 },
+    { id: "p", label: "P", zone: 2 },
+    { id: "lbracket", label: "[", zone: 2 },
+    { id: "rbracket", label: "]", zone: 2 },
+    { id: "bslash", label: "\\", zone: 2, w: 1.4 },
+    { id: "num_7", label: "7", zone: 3 },
+    { id: "num_8", label: "8", zone: 3 },
+    { id: "num_9", label: "9", zone: 3 },
+    { id: "num_plus", label: "+", zone: 3 },
+  ],
+  [
+    { id: "caps", label: "CAPS", zone: 0, w: 1.8 },
+    { id: "a", label: "A", zone: 0, isSpecial: true },
+    { id: "s", label: "S", zone: 0, isSpecial: true },
+    { id: "d", label: "D", zone: 0, isSpecial: true },
+    { id: "f", label: "F", zone: 1 },
+    { id: "g", label: "G", zone: 1 },
+    { id: "h", label: "H", zone: 1 },
+    { id: "j", label: "J", zone: 1 },
+    { id: "k", label: "K", zone: 2 },
+    { id: "l", label: "L", zone: 2 },
+    { id: "semi", label: ";", zone: 2 },
+    { id: "quote", label: "'", zone: 2 },
+    { id: "enter", label: "ENTER", zone: 2, w: 2.1 },
+    { id: "num_4", label: "4", zone: 3 },
+    { id: "num_5", label: "5", zone: 3 },
+    { id: "num_6", label: "6", zone: 3 },
+    { id: "spc_placeholder", label: "", zone: 3, w: 1 },
+  ],
+  [
+    { id: "lshift", label: "SHIFT", zone: 0, w: 2.3 },
+    { id: "z", label: "Z", zone: 0 },
+    { id: "x", label: "X", zone: 0 },
+    { id: "c", label: "C", zone: 0 },
+    { id: "v", label: "V", zone: 1 },
+    { id: "b", label: "B", zone: 1 },
+    { id: "n", label: "N", zone: 1 },
+    { id: "m", label: "M", zone: 1 },
+    { id: "comma", label: ",", zone: 2 },
+    { id: "dot", label: ".", zone: 2 },
+    { id: "fslash", label: "/", zone: 2 },
+    { id: "rshift", label: "SHIFT", zone: 2, w: 1.7 },
+    { id: "up", label: "▲", zone: 2, isSpecial: true },
+    { id: "num_1", label: "1", zone: 3 },
+    { id: "num_2", label: "2", zone: 3 },
+    { id: "num_3", label: "3", zone: 3 },
+    { id: "num_enter", label: "ENT", zone: 3 },
+  ],
+  [
+    { id: "lctrl", label: "CTRL", zone: 0, w: 1.3 },
+    { id: "fn", label: "FN", zone: 0 },
+    { id: "win", label: "WIN", zone: 0 },
+    { id: "lalt", label: "ALT", zone: 0, w: 1.2 },
+    { id: "space", label: "SPACE", zone: 1, w: 5.6 },
+    { id: "ralt", label: "ALT", zone: 2, w: 1.2 },
+    { id: "rctrl", label: "CTRL", zone: 2, w: 1.2 },
+    { id: "left", label: "◄", zone: 2, isSpecial: true },
+    { id: "down", label: "▼", zone: 2, isSpecial: true },
+    { id: "right", label: "►", zone: 2, isSpecial: true },
+    { id: "num_0", label: "0", zone: 3, w: 2.1 },
+    { id: "num_dot", label: ".", zone: 3 },
+  ],
+];
 
 // ── Main Application Component ────────────────────────────────────────────────
 export default function App() {
@@ -779,7 +900,11 @@ export default function App() {
   const [effectSpeed, setEffectSpeed] = useState<number>(2);
   const [effectDirection, setEffectDirection] = useState<number>(1);
   const [kbBrightness, setKbBrightness] = useState<number>(100);
-
+  const [lightingSubTab, setLightingSubTab] = useState<"keyboard" | "lightbar">("keyboard");
+  const [lightingMode, setLightingMode] = useState<"static" | "dynamic">("static");
+  const [zoneEnabled, setZoneEnabled] = useState<[boolean, boolean, boolean, boolean]>([true, true, true, true]);
+  const [currentProfileName, setCurrentProfileName] = useState<string>("Default");
+  const [showProfileDropdown, setShowProfileDropdown] = useState<boolean>(false);
   // Game Sync state
   const [games, setGames] = useState<GameProfile[]>([]);
   const [scanningGames, setScanningGames] = useState(false);
@@ -1154,12 +1279,36 @@ export default function App() {
     }
   };
 
+  const toggleZone = (idx: number) => {
+    const next: [boolean, boolean, boolean, boolean] = [
+      zoneEnabled[0],
+      zoneEnabled[1],
+      zoneEnabled[2],
+      zoneEnabled[3],
+    ];
+    next[idx] = !next[idx];
+    setZoneEnabled(next);
+    if (!next[idx]) {
+      invoke("set_rgb_zone", { zone: idx + 1, r: 0, g: 0, b: 0 }).catch(console.error);
+    } else {
+      const hex = zones[idx];
+      const r = parseInt(hex.slice(1, 3), 16);
+      const g = parseInt(hex.slice(3, 5), 16);
+      const b = parseInt(hex.slice(5, 7), 16);
+      invoke("set_rgb_zone", { zone: idx + 1, r, g, b }).catch(console.error);
+    }
+  };
+
   const applyPresetProfile = (preset: { name: string; zones: string[]; effect: string }) => {
+    setCurrentProfileName(preset.name);
     setZones(preset.zones);
     setSelectedEffect(preset.effect);
-    preset.zones.forEach((c, i) => applyRgb(i, c));
     if (preset.effect !== "static") {
+      setLightingMode("dynamic");
       applyDynamicEffect(preset.effect);
+    } else {
+      setLightingMode("static");
+      preset.zones.forEach((c, i) => applyRgb(i, c));
     }
   };
 
@@ -2017,358 +2166,418 @@ export default function App() {
               TAB: PULSAR RGB (LIGHTING)
              ══════════════════════════════════════════════════════════════════ */}
           {activeTab === "lighting" && (
-            <div className="space-y-6">
-              {/* Profile Control Bar */}
-              <div className="p-4 rounded-xl bg-gradient-to-r from-[#0c121d] to-[#080d16] border border-[#172338] flex flex-col xl:flex-row items-start xl:items-center justify-between gap-3">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-[10px] font-mono font-bold tracking-widest uppercase text-slate-400">
-                    PROFILES:
+            <div className="p-5 sm:p-6 rounded-2xl bg-gradient-to-b from-[#0c1017] to-[#070a10] border border-[#1a2333] space-y-4 shadow-2xl relative">
+              {/* 1. Top Bar: Lighting Profile combobox & Profile Manager */}
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-[#141d2c] pb-3.5">
+                <div className="flex items-center gap-3 relative">
+                  <span className="text-slate-400 font-sans text-xs tracking-wider font-medium">
+                    Lighting Profile
                   </span>
-                  {/* OEM Default Presets */}
-                  {PRESETS.map((p) => (
+                  <div className="relative">
                     <button
-                      key={p.name}
-                      onClick={() => applyPresetProfile(p)}
-                      className="px-2.5 py-1.5 rounded bg-[#101726] hover:bg-cyan-950/60 border border-[#1b273d] hover:border-cyan-500/50 text-xs font-mono font-semibold transition-all flex items-center gap-1.5 cursor-pointer"
+                      onClick={() => setShowProfileDropdown(!showProfileDropdown)}
+                      className="flex items-center gap-3 border-b-2 border-cyan-400 pb-0.5 text-sm font-sans font-bold text-white hover:text-cyan-300 transition-all cursor-pointer min-w-[140px]"
                     >
-                      <div className="flex gap-0.5">
-                        {p.zones.map((c, idx) => (
-                          <span key={idx} className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: c }} />
-                        ))}
-                      </div>
-                      <span>{p.name}</span>
+                      <span>{currentProfileName}</span>
+                      <span className="text-[10px] text-cyan-400 ml-auto">▼</span>
                     </button>
-                  ))}
-
-                  {/* User Saved Profiles */}
-                  {profiles.map((p) => (
-                    <div
-                      key={p.id}
-                      className="group flex items-center rounded bg-[#10192a] border border-cyan-800/40 hover:border-cyan-400 text-xs font-mono font-semibold transition-all pl-2.5 pr-1 py-1"
-                    >
-                      <button
-                        onClick={() => applyLightingProfile(p)}
-                        className="flex items-center gap-1.5 text-cyan-300 hover:text-white cursor-pointer mr-1.5"
-                      >
-                        <div className="flex gap-0.5">
-                          {p.zones.map((c, idx) => (
-                            <span key={idx} className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: c }} />
-                          ))}
+                    {showProfileDropdown && (
+                      <div className="absolute top-full left-0 mt-1.5 w-56 rounded-lg bg-[#0c121d] border border-[#1b273d] shadow-2xl z-50 py-1.5 max-h-64 overflow-y-auto">
+                        <div className="px-3 py-1 text-[10px] font-mono uppercase tracking-widest text-slate-500 font-bold">
+                          PRESETS
                         </div>
-                        <span>{p.name}</span>
-                      </button>
-                      <button
-                        onClick={() => handleExportProfile(p)}
-                        title="Export profile JSON"
-                        className="p-1 text-slate-400 hover:text-cyan-300 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
-                      >
-                        <Download className="w-3 h-3" />
-                      </button>
-                      <button
-                        onClick={(e) => handleDeleteProfile(p.id, e)}
-                        title="Delete profile"
-                        className="p-1 text-slate-400 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
-                      >
-                        <X className="w-3 h-3" />
-                      </button>
-                    </div>
-                  ))}
+                        {PRESETS.map((p) => (
+                          <button
+                            key={p.name}
+                            onClick={() => {
+                              applyPresetProfile(p);
+                              setShowProfileDropdown(false);
+                            }}
+                            className={`w-full px-3 py-1.5 text-left text-xs font-mono font-medium flex items-center justify-between hover:bg-cyan-950/60 cursor-pointer ${
+                              currentProfileName === p.name ? "text-cyan-300 font-bold bg-cyan-950/40" : "text-slate-300"
+                            }`}
+                          >
+                            <span>{p.name}</span>
+                            <div className="flex gap-0.5">
+                              {p.zones.map((c, i) => (
+                                <span key={i} className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: c }} />
+                              ))}
+                            </div>
+                          </button>
+                        ))}
+                        {profiles.length > 0 && (
+                          <>
+                            <div className="px-3 py-1 text-[10px] font-mono uppercase tracking-widest text-slate-500 font-bold border-t border-[#172338] mt-1 pt-1">
+                              SAVED PROFILES
+                            </div>
+                            {profiles.map((p) => (
+                              <button
+                                key={p.id}
+                                onClick={() => {
+                                  applyLightingProfile(p);
+                                  setCurrentProfileName(p.name);
+                                  setShowProfileDropdown(false);
+                                }}
+                                className={`w-full px-3 py-1.5 text-left text-xs font-mono font-medium flex items-center justify-between hover:bg-cyan-950/60 cursor-pointer ${
+                                  currentProfileName === p.name ? "text-cyan-300 font-bold bg-cyan-950/40" : "text-slate-300"
+                                }`}
+                              >
+                                <span>{p.name}</span>
+                                <div className="flex gap-0.5">
+                                  {p.zones.map((c, i) => (
+                                    <span key={i} className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: c }} />
+                                  ))}
+                                </div>
+                              </button>
+                            ))}
+                          </>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
 
-                <div className="flex flex-wrap items-center gap-2">
+                <div className="flex items-center gap-2">
                   <button
                     onClick={() => setShowSaveProfileModal(true)}
-                    className="px-3 py-1.5 rounded bg-cyan-500 hover:bg-cyan-400 text-black font-mono font-bold text-xs flex items-center gap-1 transition-all shadow-md shadow-cyan-500/20 cursor-pointer"
+                    className="px-5 py-1.5 rounded-md border border-[#223048] hover:border-cyan-400 bg-[#0c1320] hover:bg-cyan-950/40 text-slate-200 hover:text-white font-sans text-xs tracking-wider transition-all cursor-pointer shadow-sm"
                   >
-                    <Plus className="w-3.5 h-3.5" /> SAVE AS PROFILE
-                  </button>
-                  <button
-                    onClick={handleImportProfile}
-                    className="px-3 py-1.5 rounded bg-[#101726] hover:bg-[#152033] border border-[#1d2b42] text-slate-300 hover:text-white text-xs font-mono flex items-center gap-1 transition-all cursor-pointer"
-                  >
-                    <Upload className="w-3.5 h-3.5" /> IMPORT
-                  </button>
-                  <button
-                    onClick={() => applyRgbToAll(zones[activeZone])}
-                    className="px-3 py-1.5 rounded bg-cyan-950 text-cyan-300 border border-cyan-500/40 text-xs font-mono font-bold hover:bg-cyan-900 transition-all cursor-pointer"
-                  >
-                    APPLY ACTIVE TO ALL
+                    Profile Manager
                   </button>
                 </div>
               </div>
 
-              {/* Realistic Chiclet Keyboard Visualizer */}
-              <div className="p-6 rounded-2xl bg-gradient-to-b from-[#0b101a] to-[#070b12] border border-[#172338] space-y-4 shadow-2xl">
-                <div className="flex justify-between items-center border-b border-[#131b2a] pb-3">
-                  <div className="flex items-center gap-2">
-                    <Palette className="w-4 h-4 text-cyan-400" />
-                    <h3 className="font-bold text-sm font-mono text-slate-200">
-                      PULSAR 4-ZONE CHICLET KEYBOARD DECK
-                    </h3>
-                  </div>
-                  <span className="text-xs font-mono text-cyan-400">
-                    Zone {activeZone + 1} Selected // {zones[activeZone].toUpperCase()}
-                  </span>
-                </div>
+              {/* 2. Sub-tabs: Keyboard | Light Bar */}
+              <div className="flex items-center gap-1 border-b border-[#141d2c] pt-1">
+                <button
+                  onClick={() => setLightingSubTab("keyboard")}
+                  className={`px-6 py-1.5 rounded-t-lg font-sans text-xs tracking-wider uppercase font-semibold transition-all cursor-pointer ${
+                    lightingSubTab === "keyboard"
+                      ? "bg-gradient-to-r from-[#008ba3] to-[#00a8c4] text-white shadow-md shadow-cyan-500/20"
+                      : "bg-[#0e141f] text-slate-400 hover:text-slate-200 border-t border-x border-[#1a2538]"
+                  }`}
+                >
+                  Keyboard
+                </button>
+                <button
+                  onClick={() => setLightingSubTab("lightbar")}
+                  className={`px-6 py-1.5 rounded-t-lg font-sans text-xs tracking-wider uppercase font-semibold transition-all cursor-pointer ${
+                    lightingSubTab === "lightbar"
+                      ? "bg-gradient-to-r from-[#008ba3] to-[#00a8c4] text-white shadow-md shadow-cyan-500/20"
+                      : "bg-[#0e141f] text-slate-400 hover:text-slate-200 border-t border-x border-[#1a2538]"
+                  }`}
+                >
+                  Light Bar
+                </button>
+              </div>
 
-                {/* Keyboard Grid Layout */}
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5 p-3 rounded-xl bg-[#05080e] border border-[#101726]">
-                  {/* Zone 1: WASD & Left Modifiers */}
-                  <div
-                    onClick={() => setActiveZone(0)}
-                    style={{
-                      borderColor: activeZone === 0 ? "#00e5ff" : "rgba(255,255,255,0.1)",
-                      boxShadow: activeZone === 0 ? `0 0 20px ${zones[0]}44` : undefined,
+              {/* 3. Controls Row directly under sub-tabs */}
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pt-1">
+                {/* Left: Hexagonal Static / Dynamic Toggles */}
+                <div className="flex items-center gap-6">
+                  <button
+                    onClick={() => {
+                      setLightingMode("static");
+                      setSelectedEffect("static");
+                      zones.forEach((c, idx) => applyRgb(idx, c));
                     }}
-                    className="p-3.5 rounded-xl border-2 cursor-pointer transition-all flex flex-col justify-between h-40 relative group"
+                    className="flex items-center gap-2.5 cursor-pointer group"
                   >
-                    <div className="flex justify-between items-start">
-                      <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-black/60 text-slate-300">
-                        ZONE 01 // WASD
-                      </span>
-                      <span className="w-3.5 h-3.5 rounded-full border border-white/50" style={{ backgroundColor: zones[0] }} />
-                    </div>
-
-                    {/* Miniature Chiclets */}
-                    <div className="space-y-1 my-auto pointer-events-none opacity-80 group-hover:opacity-100">
-                      <div className="flex justify-center gap-1">
-                        <div className="w-7 h-6 rounded bg-[#131a29] border border-cyan-400/40 text-[9px] font-mono font-bold flex items-center justify-center text-cyan-300">W</div>
-                      </div>
-                      <div className="flex justify-center gap-1">
-                        <div className="w-7 h-6 rounded bg-[#131a29] border border-cyan-400/40 text-[9px] font-mono font-bold flex items-center justify-center text-cyan-300">A</div>
-                        <div className="w-7 h-6 rounded bg-[#131a29] border border-cyan-400/40 text-[9px] font-mono font-bold flex items-center justify-center text-cyan-300">S</div>
-                        <div className="w-7 h-6 rounded bg-[#131a29] border border-cyan-400/40 text-[9px] font-mono font-bold flex items-center justify-center text-cyan-300">D</div>
-                      </div>
-                    </div>
-
-                    <div className="h-1 rounded-full" style={{ backgroundColor: zones[0], boxShadow: `0 0 10px ${zones[0]}` }} />
-                  </div>
-
-                  {/* Zone 2: Center Alpha */}
-                  <div
-                    onClick={() => setActiveZone(1)}
-                    style={{
-                      borderColor: activeZone === 1 ? "#00e5ff" : "rgba(255,255,255,0.1)",
-                      boxShadow: activeZone === 1 ? `0 0 20px ${zones[1]}44` : undefined,
-                    }}
-                    className="p-3.5 rounded-xl border-2 cursor-pointer transition-all flex flex-col justify-between h-40 relative group"
-                  >
-                    <div className="flex justify-between items-start">
-                      <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-black/60 text-slate-300">
-                        ZONE 02 // ALPHA-C
-                      </span>
-                      <span className="w-3.5 h-3.5 rounded-full border border-white/50" style={{ backgroundColor: zones[1] }} />
-                    </div>
-
-                    <div className="space-y-1 my-auto pointer-events-none opacity-80 group-hover:opacity-100">
-                      <div className="flex justify-center gap-1">
-                        <div className="w-6 h-5 rounded bg-[#131a29] text-[8px] font-mono flex items-center justify-center text-slate-300">T</div>
-                        <div className="w-6 h-5 rounded bg-[#131a29] text-[8px] font-mono flex items-center justify-center text-slate-300">Y</div>
-                        <div className="w-6 h-5 rounded bg-[#131a29] text-[8px] font-mono flex items-center justify-center text-slate-300">U</div>
-                      </div>
-                      <div className="flex justify-center gap-1">
-                        <div className="w-6 h-5 rounded bg-[#131a29] text-[8px] font-mono flex items-center justify-center text-slate-300">G</div>
-                        <div className="w-6 h-5 rounded bg-[#131a29] text-[8px] font-mono flex items-center justify-center text-slate-300">H</div>
-                        <div className="w-6 h-5 rounded bg-[#131a29] text-[8px] font-mono flex items-center justify-center text-slate-300">J</div>
-                      </div>
-                    </div>
-
-                    <div className="h-1 rounded-full" style={{ backgroundColor: zones[1], boxShadow: `0 0 10px ${zones[1]}` }} />
-                  </div>
-
-                  {/* Zone 3: Right Alpha + Navigation */}
-                  <div
-                    onClick={() => setActiveZone(2)}
-                    style={{
-                      borderColor: activeZone === 2 ? "#00e5ff" : "rgba(255,255,255,0.1)",
-                      boxShadow: activeZone === 2 ? `0 0 20px ${zones[2]}44` : undefined,
-                    }}
-                    className="p-3.5 rounded-xl border-2 cursor-pointer transition-all flex flex-col justify-between h-40 relative group"
-                  >
-                    <div className="flex justify-between items-start">
-                      <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-black/60 text-slate-300">
-                        ZONE 03 // NAV+ENTER
-                      </span>
-                      <span className="w-3.5 h-3.5 rounded-full border border-white/50" style={{ backgroundColor: zones[2] }} />
-                    </div>
-
-                    <div className="space-y-1 my-auto pointer-events-none opacity-80 group-hover:opacity-100">
-                      <div className="flex justify-center gap-1">
-                        <div className="w-6 h-5 rounded bg-[#131a29] text-[8px] font-mono flex items-center justify-center text-slate-300">O</div>
-                        <div className="w-6 h-5 rounded bg-[#131a29] text-[8px] font-mono flex items-center justify-center text-slate-300">P</div>
-                        <div className="w-8 h-5 rounded bg-[#131a29] text-[8px] font-mono flex items-center justify-center text-slate-300">ENTER</div>
-                      </div>
-                      <div className="flex justify-center gap-1">
-                        <div className="w-6 h-5 rounded bg-[#131a29] text-[8px] font-mono flex items-center justify-center text-slate-300">K</div>
-                        <div className="w-6 h-5 rounded bg-[#131a29] text-[8px] font-mono flex items-center justify-center text-slate-300">L</div>
-                        <div className="w-6 h-5 rounded bg-[#131a29] text-[8px] font-mono flex items-center justify-center text-slate-300">▲</div>
-                      </div>
-                    </div>
-
-                    <div className="h-1 rounded-full" style={{ backgroundColor: zones[2], boxShadow: `0 0 10px ${zones[2]}` }} />
-                  </div>
-
-                  {/* Zone 4: Numpad & Predator Key */}
-                  <div
-                    onClick={() => setActiveZone(3)}
-                    style={{
-                      borderColor: activeZone === 3 ? "#00e5ff" : "rgba(255,255,255,0.1)",
-                      boxShadow: activeZone === 3 ? `0 0 20px ${zones[3]}44` : undefined,
-                    }}
-                    className="p-3.5 rounded-xl border-2 cursor-pointer transition-all flex flex-col justify-between h-40 relative group"
-                  >
-                    <div className="flex justify-between items-start">
-                      <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-black/60 text-slate-300">
-                        ZONE 04 // 10-KEY
-                      </span>
-                      <span className="w-3.5 h-3.5 rounded-full border border-white/50" style={{ backgroundColor: zones[3] }} />
-                    </div>
-
-                    <div className="space-y-1 my-auto pointer-events-none opacity-80 group-hover:opacity-100">
-                      <div className="flex justify-center gap-1">
-                        <div className="w-6 h-5 rounded bg-cyan-950 border border-cyan-400/40 text-[8px] font-mono font-bold flex items-center justify-center text-cyan-300">PS</div>
-                        <div className="w-6 h-5 rounded bg-[#131a29] text-[8px] font-mono flex items-center justify-center text-slate-300">7</div>
-                        <div className="w-6 h-5 rounded bg-[#131a29] text-[8px] font-mono flex items-center justify-center text-slate-300">8</div>
-                      </div>
-                      <div className="flex justify-center gap-1">
-                        <div className="w-6 h-5 rounded bg-[#131a29] text-[8px] font-mono flex items-center justify-center text-slate-300">4</div>
-                        <div className="w-6 h-5 rounded bg-[#131a29] text-[8px] font-mono flex items-center justify-center text-slate-300">5</div>
-                        <div className="w-6 h-5 rounded bg-[#131a29] text-[8px] font-mono flex items-center justify-center text-slate-300">6</div>
-                      </div>
-                    </div>
-
-                    <div className="h-1 rounded-full" style={{ backgroundColor: zones[3], boxShadow: `0 0 10px ${zones[3]}` }} />
-                  </div>
-                </div>
-
-                {/* Color Customizer Palette for Active Zone */}
-                <div className="p-4 rounded-xl bg-[#090d16] border border-[#172338] flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <span className="text-xs font-mono font-semibold text-slate-300">
-                      CALIBRATE ZONE 0{activeZone + 1}:
-                    </span>
-                    <input
-                      type="color"
-                      value={zones[activeZone]}
-                      onChange={(e) => applyRgb(activeZone, e.target.value)}
-                      className="w-10 h-8 rounded cursor-pointer bg-transparent border-0"
+                    <div
+                      className={`w-3.5 h-3.5 transition-all ${
+                        lightingMode === "static"
+                          ? "bg-cyan-400 shadow-[0_0_8px_#00e5ff]"
+                          : "bg-[#182335] group-hover:bg-[#223048]"
+                      }`}
+                      style={{ clipPath: "polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%)" }}
                     />
-                    <span className="text-xs font-mono font-bold text-cyan-400">
-                      {zones[activeZone].toUpperCase()}
-                    </span>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    {["#00AEC7", "#00E5FF", "#39FF14", "#E0007B", "#7B00FF", "#FF3300", "#FFAA00", "#FFFFFF"].map((hex) => (
-                      <button
-                        key={hex}
-                        onClick={() => applyRgb(activeZone, hex)}
-                        style={{ backgroundColor: hex }}
-                        className="w-6 h-6 rounded-md border border-white/20 hover:scale-110 hover:border-white transition-all shadow-sm"
-                      />
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              {/* Dynamic Effects Deck */}
-              <div className="p-5 rounded-xl bg-gradient-to-b from-[#0c121d] to-[#080d16] border border-[#172338] space-y-4 shadow-xl">
-                <div className="flex justify-between items-center border-b border-[#131b2a] pb-3">
-                  <h3 className="font-bold text-sm font-mono text-slate-200">
-                    DYNAMIC LIGHTING CIRCUIT (ACPI FIRMWARE ENGINE)
-                  </h3>
-                  <span className="text-xs font-mono text-slate-400">Fixed 16-Byte Hardware Array</span>
-                </div>
-
-                <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-7 gap-2">
-                  {[
-                    { id: "static", label: "Static" },
-                    { id: "breathing", label: "Breathing" },
-                    { id: "wave", label: "Wave" },
-                    { id: "zoom", label: "Zoom" },
-                    { id: "shift", label: "Shift" },
-                    { id: "neon", label: "Neon Cycle" },
-                    { id: "rainbow", label: "Rainbow" },
-                  ].map(({ id, label }) => (
-                    <button
-                      key={id}
-                      onClick={() => applyDynamicEffect(id)}
-                      className={`p-3 rounded-lg text-xs font-mono font-bold transition-all border text-center ${
-                        selectedEffect === id
-                          ? "bg-cyan-500 text-black border-cyan-400 shadow-[0_0_12px_rgba(0,229,255,0.4)]"
-                          : "bg-[#0b101b] text-slate-400 border-[#192439] hover:text-slate-200 hover:bg-[#111726]"
+                    <span
+                      className={`text-xs font-sans tracking-wide ${
+                        lightingMode === "static" ? "text-cyan-300 font-semibold" : "text-slate-400 group-hover:text-slate-300"
                       }`}
                     >
-                      {label}
-                    </button>
-                  ))}
+                      Static
+                    </span>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setLightingMode("dynamic");
+                      if (selectedEffect === "static") {
+                        setSelectedEffect("breathing");
+                        applyDynamicEffect("breathing");
+                      } else {
+                        applyDynamicEffect(selectedEffect);
+                      }
+                    }}
+                    className="flex items-center gap-2.5 cursor-pointer group"
+                  >
+                    <div
+                      className={`w-3.5 h-3.5 transition-all ${
+                        lightingMode === "dynamic"
+                          ? "bg-cyan-400 shadow-[0_0_8px_#00e5ff]"
+                          : "bg-[#182335] group-hover:bg-[#223048]"
+                      }`}
+                      style={{ clipPath: "polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%)" }}
+                    />
+                    <span
+                      className={`text-xs font-sans tracking-wide ${
+                        lightingMode === "dynamic" ? "text-cyan-300 font-semibold" : "text-slate-400 group-hover:text-slate-300"
+                      }`}
+                    >
+                      Dynamic
+                    </span>
+                  </button>
                 </div>
 
-                {/* Speed & Direction Grids */}
-                <div className="grid grid-cols-2 gap-4 pt-2">
-                  <div className="p-3 rounded-lg bg-[#090d16] border border-[#141d2d] space-y-2">
-                    <span className="text-[11px] font-mono text-slate-400 font-semibold">VELOCITY RATE:</span>
-                    <div className="grid grid-cols-3 gap-2">
-                      {[1, 2, 3].map((s) => (
-                        <button
-                          key={s}
-                          onClick={() => { setEffectSpeed(s); applyDynamicEffect(selectedEffect, s, effectDirection); }}
-                          className={`py-1.5 text-xs font-mono font-bold rounded border ${
-                            effectSpeed === s ? "bg-cyan-950 text-cyan-300 border-cyan-400" : "bg-[#0f1522] text-slate-400 border-[#1b2638]"
-                          }`}
-                        >
-                          {s === 1 ? "1X SLOW" : s === 2 ? "2X NORMAL" : "3X FAST"}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="p-3 rounded-lg bg-[#090d16] border border-[#141d2d] space-y-2">
-                    <span className="text-[11px] font-mono text-slate-400 font-semibold">PROPAGATION VECTOR:</span>
-                    <div className="grid grid-cols-4 gap-2">
-                      {[
-                        { id: 1, label: "EAST →" },
-                        { id: 2, label: "WEST ←" },
-                        { id: 3, label: "SOUTH ↓" },
-                        { id: 4, label: "NORTH ↑" },
-                      ].map(({ id, label }) => (
-                        <button
-                          key={id}
-                          onClick={() => { setEffectDirection(id); applyDynamicEffect(selectedEffect, effectSpeed, id); }}
-                          className={`py-1.5 text-xs font-mono font-bold rounded border ${
-                            effectDirection === id ? "bg-cyan-950 text-cyan-300 border-cyan-400" : "bg-[#0f1522] text-slate-400 border-[#1b2638]"
-                          }`}
-                        >
-                          {label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Backlight Brightness Slider */}
-                <div className="p-4 rounded-lg bg-[#090d16] border border-[#141d2d] space-y-2.5">
-                  <div className="flex justify-between text-xs font-mono">
-                    <span className="text-slate-300 font-semibold">KEYBOARD BACKLIGHT INTENSITY</span>
-                    <span className="text-cyan-400 font-bold">{kbBrightness}%</span>
-                  </div>
+                {/* Right: Eye icons + Brightness Slider */}
+                <div className="flex items-center gap-3">
+                  <Eye className="w-3.5 h-3.5 text-slate-500 opacity-60" />
                   <input
                     type="range"
                     min={0}
                     max={100}
                     value={kbBrightness}
                     onChange={(e) => handleBrightnessChange(+e.target.value)}
-                    className="w-full tactical-slider"
+                    className="w-32 sm:w-44 h-1.5 rounded-full bg-[#111724] accent-cyan-400 cursor-pointer"
                   />
-                  <div className="flex justify-between text-[9px] font-mono text-slate-600">
-                    <span>0% (OFF)</span>
-                    <span>25%</span>
-                    <span>50%</span>
-                    <span>75%</span>
-                    <span>100% (FULL)</span>
-                  </div>
+                  <Eye className="w-3.5 h-3.5 text-cyan-400" />
+                  <span className="text-[11px] font-mono font-bold text-cyan-300 min-w-[32px] text-right">
+                    {kbBrightness}%
+                  </span>
                 </div>
               </div>
+
+              {/* 4. Authentic Realistic Chiclet Keyboard Visualizer */}
+              <div className="p-3 sm:p-4 rounded-xl bg-[#060910] border border-[#141c2c] shadow-[inset_0_2px_12px_rgba(0,0,0,0.8)] space-y-1 sm:space-y-1.5 select-none overflow-x-auto">
+                {CHICLET_ROWS.map((row, rowIdx) => (
+                  <div key={rowIdx} className="flex gap-1 sm:gap-1.5 w-full min-w-[720px]">
+                    {row.map((key) => {
+                      if (key.isSpecial && key.id === "spc_placeholder") {
+                        return <div key={key.id} style={{ flex: key.w ?? 1 }} className="h-7 sm:h-9" />;
+                      }
+                      const isEnabled = zoneEnabled[key.zone];
+                      const color = isEnabled ? zones[key.zone] : "#1e293b";
+                      const isZoneActive = activeZone === key.zone;
+                      const isGamerKey = ["w", "a", "s", "d", "up", "left", "down", "right"].includes(key.id);
+
+                      return (
+                        <button
+                          key={key.id}
+                          onClick={() => setActiveZone(key.zone)}
+                          title={`Key ${key.label} (Zone ${key.zone + 1}: ${zones[key.zone]})`}
+                          style={{
+                            flex: key.w ?? 1,
+                            borderColor: isEnabled ? color : "#1a2436",
+                            boxShadow: isEnabled
+                              ? isZoneActive
+                                ? `0 0 14px ${color}aa, inset 0 0 6px ${color}66`
+                                : `0 0 5px ${color}40, inset 0 0 2px ${color}22`
+                              : "none",
+                          }}
+                          className={`h-7 sm:h-9 rounded-[3px] bg-[#0b0f16] border-[1.5px] transition-all flex items-center justify-center relative cursor-pointer hover:scale-[1.03] active:scale-[0.98] ${
+                            isGamerKey ? "font-black" : "font-semibold"
+                          }`}
+                        >
+                          <span
+                            className={`text-[9px] sm:text-[10px] font-mono leading-none tracking-tight transition-colors ${
+                              isEnabled
+                                ? isZoneActive
+                                  ? "text-white font-bold"
+                                  : "text-slate-200"
+                                : "text-slate-600"
+                            }`}
+                          >
+                            {key.label}
+                          </span>
+                          {key.id === "ps" && (
+                            <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                ))}
+              </div>
+
+              {/* 5. Bottom 4-Zone Footer */}
+              <div className="grid grid-cols-2 md:grid-cols-4 rounded-xl bg-[#090d16] border border-[#162133] divide-y md:divide-y-0 md:divide-x divide-[#162133]">
+                {[0, 1, 2, 3].map((idx) => {
+                  const isEnabled = zoneEnabled[idx];
+                  const isSelected = activeZone === idx;
+                  return (
+                    <div
+                      key={idx}
+                      className={`p-3.5 flex flex-col items-center justify-between gap-3 transition-all ${
+                        isSelected ? "bg-cyan-950/20" : ""
+                      }`}
+                    >
+                      <span className="font-sans text-xs tracking-wide text-slate-300 font-semibold">
+                        Zone {idx + 1}
+                      </span>
+                      <div className="flex items-center gap-4">
+                        {/* Hexagonal on/off toggle */}
+                        <button
+                          onClick={() => toggleZone(idx)}
+                          title={isEnabled ? `Disable Zone ${idx + 1}` : `Enable Zone ${idx + 1}`}
+                          className="cursor-pointer group flex items-center justify-center p-1"
+                        >
+                          <div
+                            className={`w-6 h-4 transition-all ${
+                              isEnabled
+                                ? "bg-[#00AEC7] shadow-[0_0_10px_#00e5ff]"
+                                : "bg-[#162030] group-hover:bg-[#1e2b40]"
+                            }`}
+                            style={{
+                              clipPath: "polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%)",
+                            }}
+                          />
+                        </button>
+
+                        {/* Color Swatch with corner diagonal ribbon */}
+                        <button
+                          onClick={() => setActiveZone(idx)}
+                          title={`Select Zone ${idx + 1} (${zones[idx]})`}
+                          style={{ backgroundColor: zones[idx] }}
+                          className={`w-7 h-7 rounded-sm border relative transition-all cursor-pointer shadow-md ${
+                            isSelected ? "border-white ring-2 ring-cyan-400/60 scale-105" : "border-white/40 hover:border-white"
+                          }`}
+                        >
+                          <div
+                            className="absolute bottom-0 right-0 w-0 h-0"
+                            style={{
+                              borderBottom: "6px solid rgba(255, 255, 255, 0.9)",
+                              borderRight: "6px solid rgba(255, 255, 255, 0.9)",
+                              borderLeft: "6px solid transparent",
+                              borderTop: "6px solid transparent",
+                            }}
+                          />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* 6. Active Zone Color Calibration Bar */}
+              <div className="p-3.5 rounded-xl bg-[#090d16] border border-[#162133] flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <span className="text-xs font-mono font-bold text-slate-300">
+                    CALIBRATE ZONE 0{activeZone + 1}:
+                  </span>
+                  <input
+                    type="color"
+                    value={zones[activeZone]}
+                    onChange={(e) => applyRgb(activeZone, e.target.value)}
+                    className="w-8 h-8 rounded cursor-pointer bg-transparent border-0"
+                  />
+                  <span className="text-xs font-mono font-bold text-cyan-400">
+                    {zones[activeZone].toUpperCase()}
+                  </span>
+                </div>
+
+                {/* Quick Swatches */}
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {[
+                    "#00AEC7", "#00E5FF", "#FF00FF", "#E0007B", "#39FF14",
+                    "#FF3300", "#FFAA00", "#FFFFFF", "#7B00FF", "#00FF99"
+                  ].map((hex) => (
+                    <button
+                      key={hex}
+                      onClick={() => applyRgb(activeZone, hex)}
+                      style={{ backgroundColor: hex }}
+                      title={hex}
+                      className="w-5 h-5 rounded-full border border-white/20 hover:scale-125 hover:border-white transition-all shadow-sm cursor-pointer"
+                    />
+                  ))}
+                </div>
+
+                <button
+                  onClick={() => applyRgbToAll(zones[activeZone])}
+                  className="px-3 py-1.5 rounded bg-cyan-950 text-cyan-300 border border-cyan-500/40 text-xs font-mono font-bold hover:bg-cyan-900 transition-all cursor-pointer shadow-sm"
+                >
+                  APPLY TO ALL ZONES
+                </button>
+              </div>
+
+              {/* 7. Dynamic Mode Deck (Shown when user selects Dynamic mode) */}
+              {lightingMode === "dynamic" && (
+                <div className="p-4 rounded-xl bg-[#090d16] border border-[#162133] space-y-3.5 animate-fadeIn">
+                  <div className="flex justify-between items-center border-b border-[#131b29] pb-2">
+                    <span className="text-xs font-mono font-bold text-slate-300 uppercase tracking-wider">
+                      DYNAMIC LIGHTING PATTERNS (ACPI BIOS FIRMWARE)
+                    </span>
+                    <span className="text-[10px] font-mono text-cyan-400">ACTIVE: {selectedEffect.toUpperCase()}</span>
+                  </div>
+
+                  {/* Effects */}
+                  <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-7 gap-2">
+                    {[
+                      { id: "static", label: "Static" },
+                      { id: "breathing", label: "Breathing" },
+                      { id: "wave", label: "Wave" },
+                      { id: "zoom", label: "Zoom" },
+                      { id: "shift", label: "Shift" },
+                      { id: "neon", label: "Neon Cycle" },
+                      { id: "rainbow", label: "Rainbow" },
+                    ].map(({ id, label }) => (
+                      <button
+                        key={id}
+                        onClick={() => applyDynamicEffect(id)}
+                        className={`p-2.5 rounded-lg text-xs font-mono font-bold transition-all border text-center cursor-pointer ${
+                          selectedEffect === id
+                            ? "bg-cyan-500 text-black border-cyan-400 shadow-[0_0_12px_rgba(0,229,255,0.4)]"
+                            : "bg-[#0b101b] text-slate-400 border-[#192439] hover:text-slate-200 hover:bg-[#111726]"
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Speed & Direction */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                    <div className="p-2.5 rounded-lg bg-[#060a12] border border-[#141d2d] space-y-1.5">
+                      <span className="text-[10px] font-mono text-slate-400 font-bold uppercase tracking-wider">SPEED:</span>
+                      <div className="grid grid-cols-3 gap-2">
+                        {[1, 2, 3].map((s) => (
+                          <button
+                            key={s}
+                            onClick={() => { setEffectSpeed(s); applyDynamicEffect(selectedEffect, s, effectDirection); }}
+                            className={`py-1 text-xs font-mono font-bold rounded border cursor-pointer ${
+                              effectSpeed === s ? "bg-cyan-950 text-cyan-300 border-cyan-400" : "bg-[#0f1522] text-slate-400 border-[#1b2638]"
+                            }`}
+                          >
+                            {s === 1 ? "1X SLOW" : s === 2 ? "2X NORMAL" : "3X FAST"}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="p-2.5 rounded-lg bg-[#060a12] border border-[#141d2d] space-y-1.5">
+                      <span className="text-[10px] font-mono text-slate-400 font-bold uppercase tracking-wider">DIRECTION:</span>
+                      <div className="grid grid-cols-4 gap-2">
+                        {[
+                          { id: 1, label: "EAST →" },
+                          { id: 2, label: "WEST ←" },
+                          { id: 3, label: "SOUTH ↓" },
+                          { id: 4, label: "NORTH ↑" },
+                        ].map(({ id, label }) => (
+                          <button
+                            key={id}
+                            onClick={() => { setEffectDirection(id); applyDynamicEffect(selectedEffect, effectSpeed, id); }}
+                            className={`py-1 text-xs font-mono font-bold rounded border cursor-pointer ${
+                              effectDirection === id ? "bg-cyan-950 text-cyan-300 border-cyan-400" : "bg-[#0f1522] text-slate-400 border-[#1b2638]"
+                            }`}
+                          >
+                            {label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -3206,10 +3415,10 @@ export default function App() {
       {/* ── Save Lighting Profile Modal ── */}
       {showSaveProfileModal && (
         <div className="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-6">
-          <div className="w-full max-w-sm bg-[#0a0f19] border border-cyan-500/40 rounded-2xl p-6 space-y-4 shadow-2xl">
+          <div className="w-full max-w-md bg-[#0a0f19] border border-cyan-500/40 rounded-2xl p-6 space-y-4 shadow-2xl max-h-[85vh] overflow-y-auto">
             <div className="flex justify-between items-center border-b border-[#152033] pb-3">
               <h3 className="font-bold text-sm font-mono text-slate-100 flex items-center gap-2">
-                <Palette className="w-4 h-4 text-cyan-400" /> SAVE LIGHTING PROFILE
+                <Palette className="w-4 h-4 text-cyan-400" /> LIGHTING PROFILE MANAGER
               </h3>
               <button
                 onClick={() => setShowSaveProfileModal(false)}
@@ -3219,35 +3428,105 @@ export default function App() {
               </button>
             </div>
 
-            <div className="space-y-3 font-mono text-xs">
+            {/* Save Current Profile */}
+            <div className="space-y-3 font-mono text-xs p-3.5 rounded-xl bg-[#06090f] border border-[#1b2638]">
+              <span className="text-[10px] uppercase tracking-wider text-cyan-400 font-bold block">
+                SAVE CURRENT KEYBOARD LIGHTING
+              </span>
               <p className="text-slate-400 text-[11px] leading-relaxed">
-                Saves current 4-zone colors ({zones.join(", ")}), effect ({selectedEffect}), speed ({effectSpeed}), and brightness ({kbBrightness}%) to your persistent profile library.
+                Save active 4-zone colors, dynamic effect ({selectedEffect}), speed ({effectSpeed}), and brightness ({kbBrightness}%) to your profile library.
               </p>
-              <div>
-                <label className="text-slate-400 text-[11px] block mb-1">PROFILE NAME</label>
+              <div className="flex gap-2">
                 <input
                   type="text"
-                  placeholder="e.g. Cyberpunk Purple, Deep Stealth"
+                  placeholder="Profile Name (e.g. Neon Cyber, Stealth)"
                   value={newProfileName}
                   onChange={(e) => setNewProfileName(e.target.value)}
-                  className="w-full px-3 py-2 bg-[#06090f] border border-[#1b2638] rounded-lg text-slate-200 focus:border-cyan-400 outline-none"
+                  className="flex-1 px-3 py-1.5 bg-[#0b101a] border border-[#1b2638] rounded-lg text-slate-200 focus:border-cyan-400 outline-none text-xs font-mono"
                 />
+                <button
+                  onClick={handleSaveProfile}
+                  disabled={!newProfileName.trim()}
+                  className="px-3.5 py-1.5 rounded-lg bg-cyan-500 hover:bg-cyan-400 disabled:opacity-40 text-black font-mono font-bold text-xs uppercase shadow-md shadow-cyan-500/20 cursor-pointer"
+                >
+                  SAVE
+                </button>
               </div>
             </div>
 
-            <div className="flex justify-end gap-2 pt-2 border-t border-[#152033]">
+            {/* Import / Export bar */}
+            <div className="flex justify-between items-center pt-1">
+              <span className="text-[10px] font-mono uppercase tracking-wider text-slate-400 font-bold">
+                SAVED PROFILES ({profiles.length})
+              </span>
+              <button
+                onClick={handleImportProfile}
+                className="px-2.5 py-1 rounded bg-[#101726] hover:bg-[#152033] border border-[#1d2b42] text-cyan-300 hover:text-white text-xs font-mono flex items-center gap-1.5 transition-all cursor-pointer"
+              >
+                <Upload className="w-3 h-3" /> IMPORT JSON
+              </button>
+            </div>
+
+            {/* List of Saved Profiles */}
+            <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
+              {profiles.length === 0 ? (
+                <p className="text-slate-500 text-xs font-mono text-center py-4">
+                  No custom saved profiles yet. Create one above!
+                </p>
+              ) : (
+                profiles.map((p) => (
+                  <div
+                    key={p.id}
+                    className="p-2.5 rounded-lg bg-[#070b13] border border-[#162133] hover:border-cyan-500/40 flex items-center justify-between gap-2"
+                  >
+                    <div className="flex items-center gap-2.5 flex-1 min-w-0">
+                      <div className="flex gap-0.5 shrink-0">
+                        {p.zones.map((c, i) => (
+                          <span key={i} className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: c }} />
+                        ))}
+                      </div>
+                      <div className="truncate">
+                        <span className="font-mono text-xs font-bold text-slate-200 block truncate">{p.name}</span>
+                        <span className="text-[10px] font-mono text-slate-500 uppercase">{p.effect || "static"}</span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        onClick={() => {
+                          applyLightingProfile(p);
+                          setCurrentProfileName(p.name);
+                        }}
+                        className="px-2 py-1 rounded bg-cyan-950 hover:bg-cyan-900 border border-cyan-500/30 text-cyan-300 text-[10px] font-mono font-bold cursor-pointer"
+                      >
+                        LOAD
+                      </button>
+                      <button
+                        onClick={() => handleExportProfile(p)}
+                        title="Export profile JSON"
+                        className="p-1 rounded text-slate-400 hover:text-cyan-300 hover:bg-slate-800 transition-colors cursor-pointer"
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={(e) => handleDeleteProfile(p.id, e)}
+                        title="Delete profile"
+                        className="p-1 rounded text-slate-400 hover:text-red-400 hover:bg-slate-800 transition-colors cursor-pointer"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            <div className="flex justify-end pt-2 border-t border-[#152033]">
               <button
                 onClick={() => setShowSaveProfileModal(false)}
-                className="px-4 py-2 rounded-lg bg-slate-800 text-slate-400 text-xs font-mono hover:text-white cursor-pointer"
+                className="px-4 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-mono cursor-pointer"
               >
-                CANCEL
-              </button>
-              <button
-                onClick={handleSaveProfile}
-                disabled={!newProfileName.trim()}
-                className="px-4 py-2 rounded-lg bg-cyan-500 hover:bg-cyan-400 disabled:opacity-40 text-black font-mono font-bold text-xs uppercase shadow-md shadow-cyan-500/20 cursor-pointer"
-              >
-                SAVE PROFILE
+                CLOSE
               </button>
             </div>
           </div>
