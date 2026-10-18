@@ -10,6 +10,7 @@ import {
   Radio, Minus, Plus, Square, Copy, Thermometer,
   Download, Upload, Trash2, Keyboard, Eye,
 } from "lucide-react";
+import PredatorLogo from "./PredatorLogo";
 import "./App.css";
 
 export type FanMode = "auto" | "max" | "custom";
@@ -1495,9 +1496,9 @@ export default function App() {
       <aside className="w-56 lg:w-64 bg-[#090d15] border-r border-[#152033] flex flex-col justify-between p-3.5 z-20 shadow-2xl shrink-0">
         <div>
           {/* Predator Brand Shield */}
-          <div className="px-3 py-3.5 mb-5 border-b border-[#152033] flex items-center gap-3">
-            <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-[#00e5ff] to-[#0066ff] flex items-center justify-center shadow-lg shadow-cyan-500/25 border border-cyan-400/30">
-              <Zap className="w-5 h-5 text-black fill-current animate-pulse" />
+          <div className="px-3 py-3 mb-5 border-b border-[#152033] flex items-center gap-3">
+            <div className="relative group">
+              <PredatorLogo className="w-10 h-10 drop-shadow-[0_0_12px_rgba(0,229,255,0.4)] transition-transform group-hover:scale-105" />
             </div>
             <div>
               <div className="flex items-center gap-1.5">
